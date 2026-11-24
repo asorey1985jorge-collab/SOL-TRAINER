@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Sol Trainer</title>
+<meta name="theme-color" content="#8a63c9">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Sol Trainer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top" id="top" hidden>
+    <div class="brand">Sol <span>Trainer</span></div>
+    <div class="today"><span id="today"></span><br><button class="linkbtn small" id="salir">Salir</button></div>
+  </header>
+  <div id="status"></div>
+  <main id="view"><div class="empty">Cargando…</div></main>
+</div>
+<nav class="tabs" id="tabs" hidden>
+  <a href="#inicio" data-v="inicio">Inicio</a>
+  <a href="#alumnos" data-v="alumnos">Alumnos</a>
+  <a href="#asistencia" data-v="asistencia">Asistencia</a>
+  <a href="#pagos" data-v="pagos">Pagos</a>
+  <a href="#reportes" data-v="mas">Más</a>
+</nav>
+<div id="sheet-root"></div>
+<script src="vendor/supabase-2.45.4.js"></script>
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script>
+if ("serviceWorker" in navigator) addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+</script>
+</body>
+</html>
