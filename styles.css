@@ -126,3 +126,15 @@ a.chip{text-decoration:none}
 .frase small{display:block;color:var(--accent-2);font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:13px;text-shadow:0 0 10px rgba(168,85,247,.6)}
 .frase p{margin:4px 0 0;font-family:var(--font-display);font-weight:600;font-style:italic;font-size:22px;line-height:1.2;text-wrap:balance}
 .frase+.card{margin-top:12px}
+/* Fotos de evolución */
+.foto{display:block;width:100%;aspect-ratio:3/4;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2);cursor:pointer}
+.foto img{width:100%;height:100%;object-fit:cover;display:block}
+.foto.vacia{display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:12px;cursor:default;border-style:dashed}
+.foto.grande{border-color:var(--accent);box-shadow:var(--glow)}
+.fotos3,.comparar{display:grid;gap:8px}
+.fotos3{grid-template-columns:repeat(3,1fr)}
+.comparar{grid-template-columns:1fr 1fr}
+.fotos3 figure,.comparar figure{margin:0;display:flex;flex-direction:column;gap:4px;min-width:0}
+figcaption{font-size:12px;color:var(--muted);text-align:center}
+.comparar figcaption{font-family:var(--font-display);font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-2)}
+.foto-dia{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--line)}
