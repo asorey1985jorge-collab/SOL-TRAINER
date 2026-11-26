@@ -34,7 +34,8 @@ function estado(a){
   if (d <= 5) return {k:"warn", t: d===0 ? "Vence hoy" : `Vence en ${d} d`, d};
   return {k:"ok", t:"Al día", d};
 }
-const activos = () => [...S.alumnos.values()].filter(a => a.activo !== false).sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
+const pendientes = () => [...S.alumnos.values()].filter(a => a.pendiente).sort((x,y)=>(x.created_at||"").localeCompare(y.created_at||""));
+const activos = () => [...S.alumnos.values()].filter(a => a.activo !== false && !a.pendiente).sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
 
 function toast(msg){ const t = document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
 async function copy(text){ try{ await navigator.clipboard.writeText(text); toast("Copiado"); }catch{ openSheet("Copiá el texto", `<textarea id="cp" style="min-height:180px">${esc(text)}</textarea>`); setTimeout(()=>{const c=$("#cp"); c&&c.select();},50); } }
@@ -98,13 +99,17 @@ function vLogin(modo = "entrar", aviso = ""){
     <div class="brand">Sol <span>Trainer</span></div>
     <div class="sub">${esc(titulos[modo])}</div>
     ${aviso ? `<div class="notice">${aviso}</div>` : ""}
+    ${modo==="crear" ? `<label class="f">Nombre y apellido<input id="l-nombre" autocomplete="name" required></label>
+    <label class="f">Teléfono (WhatsApp)<input id="l-tel" inputmode="tel" autocomplete="tel" placeholder="11 2345 6789" required></label>
+    <label class="f">Plan<select id="l-plan">${PLANES.map(x=>`<option>${esc(x[0])}</option>`).join("")}</select></label>
+    <label class="f">Fecha de nacimiento (opcional)<input id="l-nac" type="date"></label>` : ""}
     ${modo!=="nueva" ? `<label class="f">Email<input id="l-email" type="email" autocomplete="email" required></label>` : ""}
     ${modo!=="olvido" ? `<label class="f">Contraseña<input id="l-pass" type="password" minlength="6" autocomplete="${modo==="entrar"?"current-password":"new-password"}" required></label>` : ""}
     <button class="btn primary" type="submit" style="justify-content:center">${esc(titulos[modo])}</button>
     <div class="small muted" style="text-align:center;display:flex;flex-direction:column;gap:6px">
       ${modo==="entrar" ? `<span>¿Primera vez? <button type="button" class="linkbtn" data-m="crear">Crear cuenta</button></span><button type="button" class="linkbtn" data-m="olvido">Me olvidé la contraseña</button>` : modo!=="nueva" ? `<button type="button" class="linkbtn" data-m="entrar">Volver a ingresar</button>` : ""}
     </div>
-    ${modo==="crear" ? `<p class="small muted" style="margin:0">Usá el mismo email que le diste al gimnasio, así ves tu rutina y tu cuota.</p>` : ""}
+    ${modo==="crear" ? `<p class="small muted" style="margin:0">Con estos datos queda hecha tu ficha. El profe confirma tu registro y tu primer pago, y ya ves tu rutina y tu cuota.</p>` : ""}
   </form>`;
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => vLogin(b.dataset.m));
   $("#flog").onsubmit = async e => {
@@ -113,7 +118,7 @@ function vLogin(modo = "entrar", aviso = ""){
     const email = $("#l-email")?.value.trim(), password = $("#l-pass")?.value;
     let r;
     if (modo==="entrar") r = await sb.auth.signInWithPassword({ email, password });
-    else if (modo==="crear") r = await sb.auth.signUp({ email, password, options:{ emailRedirectTo: APP_URL } });
+    else if (modo==="crear") r = await sb.auth.signUp({ email, password, options:{ emailRedirectTo: APP_URL, data:{ nombre:$("#l-nombre").value.trim(), telefono:$("#l-tel").value.trim(), plan:$("#l-plan").value, nacimiento:$("#l-nac").value||null } } });
     else if (modo==="olvido") r = await sb.auth.resetPasswordForEmail(email, { redirectTo: APP_URL });
     else r = await sb.auth.updateUser({ password });
     btn.disabled = false;
@@ -154,6 +159,10 @@ function renderAlumno(){
   $("#top").hidden = false; $("#tabs").hidden = true;
   const f = S.ficha;
   if (!f) { $("#view").innerHTML = `<div class="card" style="margin-top:16px"><h3>Tu cuenta está lista</h3><p>Todavía no está asociada a tu ficha del gimnasio. Pedile al profe que cargue este email en tu ficha:</p><p><b>${esc(S.email)}</b></p><button class="btn" id="reint">Ya me agregó, volver a cargar</button></div>`; $("#reint").onclick = cargarAlumno; return; }
+  if (f.pendiente) {
+    $("#view").innerHTML = `<div class="card stack" style="margin-top:16px"><h3 style="margin:0">¡Gracias por registrarte, ${esc((f.nombre||"").split(" ")[0])}!</h3><p style="margin:0">Tu registro está <b>pendiente de confirmación</b>. El profe lo confirma cuando registra tu primer pago, y ahí vas a ver tu rutina y tu cuota.</p>${f.plan?`<div class="small muted">Plan elegido: ${esc(f.plan)}${f.cuota?` · Cuota ${money(f.cuota)}`:""}</div>`:""}<button class="btn" id="reint">Volver a cargar</button></div>${comoPagar(f)}`;
+    $("#reint").onclick = cargarAlumno; const ca = $("#copiar-alias"); if (ca) ca.onclick = () => copy(S.config.alias); return;
+  }
   const e = estado(f);
   const big = e.d==null ? "—" : e.d<0 ? `${-e.d}` : `${e.d}`;
   const label = e.d==null ? "Todavía no hay pagos registrados" : e.d<0 ? `días de atraso · venció el ${fdate(f.vence)}` : e.d===0 ? "Tu cuota vence hoy" : `días hasta tu próximo pago (${fdate(f.vence)})`;
@@ -306,6 +315,54 @@ function invitacion(a){
   return `Hola ${a.nombre.split(" ")[0]}! Ya podés ver tu rutina y tu cuota en la app de ${GYM}: ${APP_URL}\nTocá "Crear cuenta" con este email: ${a.email}\nTip: en el celular, abrí el menú del navegador y elegí "Agregar a pantalla de inicio" para tenerla como app.`;
 }
 
+/* =================== ADMIN: alumnos nuevos (se registraron solos) =================== */
+function nuevosInicio(){
+  const p = pendientes(); if (!p.length) return "";
+  return `<h2>Alumnos nuevos <span class="pill warn">${p.length}</span></h2>
+  <p class="small muted" style="margin:-4px 0 8px">Se registraron desde la app. Confirmá su alta y su primer pago.</p>
+  <div class="list">${p.map(a=>{ const wa = waLink(a.telefono, `Hola ${a.nombre.split(" ")[0]}! Te escribo de ${GYM}. Recibí tu registro en la app.`);
+    return `<div class="row" style="flex-wrap:wrap"><div class="avatar">${esc(initials(a.nombre))}</div><div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${esc(a.plan||"Sin plan")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.created_at?` · se registró el ${fdate(a.created_at.slice(0,10))}`:""}</div></div>
+    <div class="actions" style="width:100%;justify-content:flex-end">${wa?`<a class="btn sm" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="btn sm danger" data-act="nuevo-rechazar" data-id="${esc(a.id)}">Rechazar</button><button class="btn sm primary" data-act="nuevo-confirmar" data-id="${esc(a.id)}">Confirmar</button></div></div>`; }).join("")}</div>`;
+}
+function confirmarNuevo(a){
+  openSheet("Confirmar alumno nuevo", `
+  <form id="fn" class="stack">
+    <div class="card small"><b>${esc(a.nombre)}</b><br>${esc(a.email||"")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.nacimiento?`<br>Nació el ${fdate(a.nacimiento)}`:""}</div>
+    <div class="grid2">
+      <label class="f">Plan<select id="fn-plan">${[...PLANES.map(x=>x[0]), ...(a.plan && !PLANES.some(x=>x[0]===a.plan) ? [a.plan] : [])].map(pl=>`<option ${pl===a.plan?"selected":""}>${esc(pl)}</option>`).join("")}</select></label>
+      <label class="f">Cuota mensual ($)<input id="fn-cuota" inputmode="numeric" value="${esc(a.cuota||"")}" placeholder="25000"></label>
+    </div>
+    <div class="card stack small"><label style="display:flex;gap:8px;align-items:center;font-size:15px"><input type="checkbox" id="fn-pago" style="width:auto" checked> Ya pagó la primera cuota</label>
+      <div class="grid2"><label class="f">Medio de pago<select id="fn-medio"><option>Efectivo</option><option>Transferencia</option></select></label>
+      <label class="f">Si no pagó, la cuota vence el<input id="fn-vence" type="date" value="${addMonths(TODAY,1)}"></label></div>
+      <span class="muted">Se registra el pago de hoy y la cuota vence en un mes.</span></div>
+    <div class="actions"><button class="btn primary" type="submit">Confirmar alta</button></div>
+  </form>`, () => {
+    const precioPlan = () => { const x = PLANES.find(x=>x[0]===$("#fn-plan").value); const v = x && S.config && S.config[x[1]]; if (v) $("#fn-cuota").value = v; };
+    $("#fn-plan").onchange = precioPlan;
+    if (!a.cuota) precioPlan();
+    $("#fn").onsubmit = async e => {
+      e.preventDefault();
+      const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
+      const pagoYa = $("#fn-pago").checked;
+      const cuota = Number($("#fn-cuota").value.replace(/\D/g,""))||0;
+      const { error } = await sb.from("alumnos").update({ pendiente:false, activo:true, alta:TODAY, plan:$("#fn-plan").value, cuota, vence: pagoYa ? null : ($("#fn-vence").value||null) }).eq("id", a.id);
+      if (error) { btn.disabled = false; return toast("No se pudo confirmar: " + errMsg(error)); }
+      if (pagoYa) {
+        const r = await sb.rpc("registrar_pago", { p_alumno:a.id, p_monto:cuota, p_fecha:TODAY, p_medio:$("#fn-medio").value, p_meses:1 });
+        if (r.error) toast("Quedó confirmado, pero no se pudo registrar el pago: " + errMsg(r.error));
+        else toast(`${a.nombre} confirmado y pago registrado`);
+      } else toast(`${a.nombre} confirmado`);
+      closeSheet(); await cargarAdmin();
+    };
+  });
+}
+function rechazarNuevo(a){
+  openSheet("Rechazar registro", `<p>Se borra la ficha de <b>${esc(a.nombre)}</b> (${esc(a.email||"")}). Si fue un error, puede volver a cargarlo con <b>Nuevo alumno</b>.</p><div class="actions"><button class="btn danger" id="rz-ok">Rechazar</button></div>`, () => {
+    $("#rz-ok").onclick = async () => { if (await run(() => sb.from("alumnos").delete().eq("id", a.id), "Registro rechazado")) closeSheet(); };
+  });
+}
+
 /* =================== ADMIN: vistas =================== */
 function vInicio(){
   const al = activos(); const est = al.map(a=>[a,estado(a)]);
@@ -316,7 +373,7 @@ function vInicio(){
   const cobrar = est.filter(([,e])=>e.k!=="ok").sort((x,y)=>(x[1].d??-999)-(y[1].d??-999));
   const pronto = est.filter(([,e])=>e.k==="warn").length, venc = est.filter(([,e])=>e.k==="bad").length;
   const alerta = (pronto||venc) ? `<div class="notice ${venc?"err":""}" style="cursor:pointer" data-go="alumnos" data-f="${venc?"bad":"warn"}"><span><b>Atención:</b> ${[pronto?`${pronto} ${pronto===1?"cuota vence":"cuotas vencen"} en los próximos 5 días`:"", venc?`${venc} ${venc===1?"está vencida":"están vencidas"}`:""].filter(Boolean).join(" y ")}.</span><span class="small">Ver →</span></div>` : "";
-  return `${alerta}<div id="push-box" style="margin-top:10px"></div>
+  return `${nuevosInicio()}${alerta}<div id="push-box" style="margin-top:10px"></div>
   <h2>Resumen</h2>
   <div class="kpis">
     <button class="kpi" data-go="alumnos" data-f="todos"><small>Alumnos activos</small><b>${al.length}</b></button>
@@ -340,7 +397,7 @@ function vInicio(){
 
 function vAlumnos(){
   const q = S.q.toLowerCase();
-  const todos = [...S.alumnos.values()].sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
+  const todos = [...S.alumnos.values()].filter(a=>!a.pendiente).sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
   const list = todos.filter(a => { const e=estado(a); if (S.filter==="todos" ? e.k==="off" : S.filter!==e.k) return false; return !q || a.nombre.toLowerCase().includes(q) || (a.telefono||"").includes(q) || (a.email||"").includes(q); });
   const chip = (k,t) => `<button class="chip" data-f="${k}" aria-pressed="${S.filter===k}">${t}</button>`;
   return `<h2>Alumnos</h2>
@@ -378,7 +435,8 @@ function vAlumno(id){
   const vino = [...S.asist.values()].filter(x=>x.fecha>=desde30 && x.ids.includes(id)).length;
   const wa = waLink(a.telefono, recordatorio(a));
   const waInv = a.email ? waLink(a.telefono, invitacion(a)) : null;
-  return `<p style="margin:10px 0 0"><a href="#alumnos" class="muted small">← Alumnos</a></p>
+  const pend = a.pendiente ? `<div class="notice"><span><b>Registro pendiente.</b> Se anotó desde la app y falta confirmar su alta.</span><button class="btn sm primary" data-act="nuevo-confirmar" data-id="${esc(id)}">Confirmar</button></div>` : "";
+  return `<p style="margin:10px 0 0"><a href="#alumnos" class="muted small">← Alumnos</a></p>${pend}
   <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><div class="avatar" style="width:52px;height:52px;font-size:22px">${esc(initials(a.nombre))}</div><div style="min-width:0"><h2 style="margin:0">${esc(a.nombre)}</h2><span class="pill ${e.k}">${esc(e.t)}</span></div></div>
   <div class="card" style="margin-top:12px"><div class="grid2 small">
     <div><span class="muted">Plan</span><br>${esc(a.plan||"—")}</div><div><span class="muted">Cuota</span><br><span class="num">${money(a.cuota)}</span></div>
@@ -574,7 +632,7 @@ function vReportes(){
   const ultima = id => { let u=null; for (const [f,x] of S.asist) if (x.ids.includes(id) && (!u || f>u)) u=f; return u; };
   const hace14 = iso(new Date(Date.now()-14*86400000));
   const ausentes = al.map(a=>[a, ultima(a.id)]).filter(([a,u]) => (u ? u < hace14 : (a.alta||"") < hace14)).sort((x,y)=>(x[1]||"").localeCompare(y[1]||""));
-  const altas = [...S.alumnos.values()].filter(a=>(a.alta||"").startsWith(m));
+  const altas = [...S.alumnos.values()].filter(a=>!a.pendiente && (a.alta||"").startsWith(m));
   const asisMes = [...S.asist.values()].filter(x=>x.fecha.startsWith(m) && x.ids.length);
   const visitas = asisMes.reduce((s,x)=>s+x.ids.length,0);
   return `${masTabs("reportes")}
@@ -712,6 +770,8 @@ document.addEventListener("click", async e => {
   const act = t.dataset.act, id = t.dataset.id;
   if (await accionesExtra(act, t)) return;
   if (act==="nuevo") alumnoForm();
+  else if (act==="nuevo-confirmar") confirmarNuevo(S.alumnos.get(id));
+  else if (act==="nuevo-rechazar") rechazarNuevo(S.alumnos.get(id));
   else if (act==="editar") alumnoForm(S.alumnos.get(id));
   else if (act==="pago") pagoForm(id);
   else if (act==="anular") anularPago(S.pagos.find(p=>p.id===id));
