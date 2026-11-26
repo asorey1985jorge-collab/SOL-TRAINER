@@ -24,7 +24,7 @@ if (!window.supabase || !CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("TU-PROYE
 }
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
-const S = { medic:[], cargas:[], biblio:[], progEj:{}, config:{}, role:null, alumnos:new Map(), pagos:[], asist:new Map(), filter:"todos", q:"", draft:null, editRutina:false, asistFecha:null, ficha:null };
+const S = { medic:[], cargas:[], biblio:[], fotos:[], fotoUrl:{}, progEj:{}, progMed:{}, progPose:{}, config:{}, role:null, alumnos:new Map(), pagos:[], asist:new Map(), filter:"todos", q:"", draft:null, editRutina:false, asistFecha:null, ficha:null };
 
 function estado(a){
   if (a.activo === false) return {k:"off", t:"Inactivo", d:null};
@@ -42,8 +42,9 @@ async function copy(text){ try{ await navigator.clipboard.writeText(text); toast
 function waLink(tel, text){ let d=(tel||"").replace(/\D/g,""); if(!d) return null; if(!d.startsWith("54")) d="549"+d.replace(/^0/,""); return `https://wa.me/${d}?text=${encodeURIComponent(text)}`; }
 const errMsg = e => (e && (e.message || e.error_description)) || "error desconocido";
 
+const recargar = () => S.role==="admin" ? cargarAdmin() : cargarAlumno();
 async function run(fn, okMsg){
-  try { const r = await fn(); if (r && r.error) throw r.error; if (okMsg) toast(okMsg); await cargarAdmin(); return true; }
+  try { const r = await fn(); if (r && r.error) throw r.error; if (okMsg) toast(okMsg); await recargar(); return true; }
   catch(e){ toast("No se pudo guardar: " + errMsg(e)); return false; }
 }
 
@@ -195,18 +196,19 @@ function renderAlumno(){
   <h2>Tus archivos</h2>
   <div class="list">${archivosLista(S.misArchivos||[], false)}</div>
   ${(f.ultimos_pagos||[]).length ? `<h2>Tus pagos</h2><div class="list">${f.ultimos_pagos.map(p=>`<div class="row"><div class="main"><div class="name num">${money(p.monto)}</div><div class="muted small">${fdate(p.fecha)} · cubre hasta ${fdate(p.hasta)}</div></div></div>`).join("")}</div>` : ""}`;
-  pintarPush();
+  pintarPush(); pintarFotos();
   const ca = $("#copiar-alias"); if (ca) ca.onclick = () => copy(S.config.alias);
 }
 
 /* =================== ADMIN: datos =================== */
 async function cargarExtras(){
-  const [m, c, b] = await Promise.all([
+  const [m, c, b, ft] = await Promise.all([
     sb.from("mediciones").select("*").order("fecha"),
     sb.from("cargas").select("*").order("fecha"),
-    sb.from("ejercicios").select("*")
+    sb.from("ejercicios").select("*"),
+    sb.from("fotos_progreso").select("*").order("fecha")
   ]);
-  S.medic = m.data || []; S.cargas = c.data || []; S.biblio = b.data || [];
+  S.medic = m.data || []; S.cargas = c.data || []; S.biblio = b.data || []; S.fotos = ft.data || [];
 }
 async function cargarAdmin(){
   const desde = iso(new Date(Date.now()-120*86400000));
@@ -535,7 +537,8 @@ const mesNombre = m => parse(m+"-01").toLocaleDateString("es-AR",{month:"long",y
 const mesCorto = m => parse(m+"-01").toLocaleDateString("es-AR",{month:"short"}).replace(".","");
 const mesMenos = (m, n) => addMonths(m+"-01", -n).slice(0,7);
 const GRUPOS = ["Piernas","Glúteos","Pecho","Espalda","Hombros","Brazos","Core","Cardio","Movilidad"];
-const CAMPOS = [["peso","Peso","kg"],["cintura","Cintura","cm"],["cadera","Cadera","cm"],["brazo","Brazo","cm"],["pierna","Pierna","cm"],["grasa","Grasa corporal","%"]];
+const CAMPOS = [["peso","Peso","kg"],["abdomen","Abdomen","cm"],["cintura","Cintura","cm"],["pecho","Pecho","cm"],["brazo","Brazo","cm"],["pierna","Pierna","cm"],["cadera","Cadera","cm"],["grasa","Grasa corporal","%"]];
+const POSES = [["frente","Frente"],["perfil","Perfil"],["espalda","Espalda"]];
 
 function lineChart(pts, unit, nombre){
   if (pts.length < 2) return `<div class="empty small">${pts.length ? `Hay un solo registro (${fmtN(pts[0].y)} ${unit}). Con el próximo ya se ve la evolución.` : "Todavía no hay registros."}</div>`;
@@ -589,31 +592,121 @@ function progresoView(id, admin){
   const ejs = [...new Set(car.map(c=>c.ejercicio))].sort((a,b)=>a.localeCompare(b,"es"));
   const sel = ejs.includes(S.progEj[id]) ? S.progEj[id] : ejs[0];
   const has = (m,k) => m[k]!=null && m[k]!=="";
-  const pesoPts = med.filter(m=>has(m,"peso")).map(m=>({x:m.fecha, y:Number(m.peso)}));
+  const conDatos = CAMPOS.filter(([k]) => med.some(m=>has(m,k)));
+  const medSel = conDatos.find(([k])=>k===S.progMed[id]) || conDatos[0] || CAMPOS[0];
+  const medPts = med.filter(m=>has(m,medSel[0])).map(m=>({x:m.fecha, y:Number(m[medSel[0]])}));
   const carPts = car.filter(c=>c.ejercicio===sel).map(c=>({x:c.fecha, y:Number(c.kg)}));
-  const filas = CAMPOS.map(([k,t,u]) => { const v = med.filter(m=>has(m,k)); if (!v.length) return ""; const a=Number(v[0][k]), b=Number(v[v.length-1][k]), d=b-a;
+  const filas = conDatos.map(([k,t,u]) => { const v = med.filter(m=>has(m,k)); const a=Number(v[0][k]), b=Number(v[v.length-1][k]), d=b-a;
     return `<tr><td>${t}</td><td class="num">${fmtN(a)} ${u}</td><td class="num"><b>${fmtN(b)} ${u}</b></td><td class="num ${d===0?"":"muted"}">${v.length>1?`${d>0?"+":""}${fmtN(d)}`:"—"}</td></tr>`; }).join("");
+  const quien = admin ? "" : "tus ";
   return `<div class="stack">
-  <div class="card stack"><div class="sec-head"><b>Peso corporal</b>${admin?`<button class="btn sm primary" data-act="med-nueva" data-id="${esc(id)}">+ Medición</button>`:""}</div>
-    ${lineChart(pesoPts, "kg", "Peso corporal")}
+  <div class="card stack"><div class="sec-head"><b>Peso y medidas</b><button class="btn sm primary" data-pact="med-nueva" data-id="${esc(id)}">+ Medición</button></div>
+    ${conDatos.length > 1 ? `<div class="chips">${conDatos.map(([k,t])=>`<button class="chip" data-prog-med="${k}" data-prog-id="${esc(id)}" aria-pressed="${k===medSel[0]}">${t}</button>`).join("")}</div>` : ""}
+    ${med.length ? lineChart(medPts, medSel[2], medSel[1]) : `<div class="empty small">${admin ? "Cargá peso y medidas para ver cómo evoluciona." : "Anotá tu peso y tus medidas (abdomen, cintura, pecho, brazos, piernas) cada 2 o 4 semanas y mirá cómo cambiás."}</div>`}
     ${filas ? `<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Medida</th><th>Primera</th><th>Última</th><th>Cambio</th></tr></thead><tbody>${filas}</tbody></table></div>` : ""}
-    ${admin && med.length ? `<details><summary class="small">Ver mediciones cargadas (${med.length})</summary><div class="list" style="margin-top:8px">${med.slice().reverse().map(m=>`<div class="row"><div class="main"><div class="name">${fdate(m.fecha)}</div><div class="muted small">${CAMPOS.filter(([k])=>has(m,k)).map(([k,t,u])=>`${t} ${fmtN(m[k])} ${u}`).join(" · ")||"Sin valores"}</div></div><button class="btn sm danger" data-act="prog-del" data-tabla="mediciones" data-id="${esc(m.id)}" aria-label="Borrar medición">✕</button></div>`).join("")}</div></details>` : ""}
+    ${med.length ? `<details><summary class="small">Ver mediciones cargadas (${med.length})</summary><div class="list" style="margin-top:8px">${med.slice().reverse().map(m=>`<div class="row"><div class="main"><div class="name">${fdate(m.fecha)}</div><div class="muted small">${CAMPOS.filter(([k])=>has(m,k)).map(([k,t,u])=>`${t} ${fmtN(m[k])} ${u}`).join(" · ")||"Sin valores"}${m.notas?` · ${esc(m.notas)}`:""}</div></div><button class="btn sm danger" data-pact="prog-del" data-tabla="mediciones" data-id="${esc(m.id)}" aria-label="Borrar medición">✕</button></div>`).join("")}</div></details>` : ""}
   </div>
-  <div class="card stack"><div class="sec-head"><b>Cargas por ejercicio</b>${admin?`<button class="btn sm primary" data-act="carga-nueva" data-id="${esc(id)}">+ Carga</button>`:""}</div>
+  <div class="card stack"><div class="sec-head"><b>Fuerza por ejercicio</b><button class="btn sm primary" data-pact="carga-nueva" data-id="${esc(id)}">+ Carga</button></div>
     ${ejs.length ? `<div class="chips">${ejs.map(e=>`<button class="chip" data-prog-ej="${esc(e)}" data-prog-id="${esc(id)}" aria-pressed="${e===sel}">${esc(e)}</button>`).join("")}</div>` : ""}
-    ${ejs.length ? lineChart(carPts, "kg", sel) : `<div class="empty small">${admin ? "Registrá cuánto levanta en cada ejercicio para ver cómo progresa." : "Tu profe todavía no registró tus cargas."}</div>`}
-    ${admin && carPts.length ? `<details><summary class="small">Ver registros de ${esc(sel)} (${carPts.length})</summary><div class="list" style="margin-top:8px">${car.filter(c=>c.ejercicio===sel).reverse().map(c=>`<div class="row"><div class="main"><div class="name num">${fmtN(c.kg)} kg${c.reps?` · ${esc(c.reps)} reps`:""}</div><div class="muted small">${fdate(c.fecha)}</div></div><button class="btn sm danger" data-act="prog-del" data-tabla="cargas" data-id="${esc(c.id)}" aria-label="Borrar registro">✕</button></div>`).join("")}</div></details>` : ""}
-  </div></div>`;
+    ${ejs.length ? lineChart(carPts, "kg", sel) : `<div class="empty small">${admin ? "Registrá cuánto levanta en cada ejercicio para ver cómo progresa." : "Anotá cuánto levantás en tus ejercicios principales y mirá cómo subís."}</div>`}
+    ${carPts.length ? `<details><summary class="small">Ver registros de ${esc(sel)} (${carPts.length})</summary><div class="list" style="margin-top:8px">${car.filter(c=>c.ejercicio===sel).reverse().map(c=>`<div class="row"><div class="main"><div class="name num">${fmtN(c.kg)} kg${c.reps?` · ${esc(c.reps)} reps`:""}</div><div class="muted small">${fdate(c.fecha)}</div></div><button class="btn sm danger" data-pact="prog-del" data-tabla="cargas" data-id="${esc(c.id)}" aria-label="Borrar registro">✕</button></div>`).join("")}</div></details>` : ""}
+  </div>
+  ${fotosView(id, admin)}</div>`;
 }
-document.addEventListener("click", e => {
-  const b = e.target.closest("[data-prog-ej]"); if (!b) return;
-  S.progEj[b.dataset.progId] = b.dataset.progEj; render();
+function fotosView(id, admin){
+  const fotos = (S.fotos||[]).filter(f=>f.alumno_id===id);
+  const fechas = [...new Set(fotos.map(f=>f.fecha))].sort();
+  const pose = S.progPose[id] || "frente";
+  const de = (fecha, p) => fotos.find(f=>f.fecha===fecha && f.pose===p);
+  const conPose = fechas.filter(f=>de(f,pose));
+  const img = (f, cls="") => f ? `<button class="foto ${cls}" data-abrir="${esc(f.path)}" aria-label="Ver foto ${esc(f.pose)} del ${fdate(f.fecha)}"><img data-foto="${esc(f.path)}" alt=""></button>` : `<div class="foto vacia ${cls}">Sin foto</div>`;
+  const comparar = conPose.length >= 2
+    ? `<div class="chips">${POSES.map(([k,t])=>`<button class="chip" data-prog-pose="${k}" data-prog-id="${esc(id)}" aria-pressed="${k===pose}">${t}</button>`).join("")}</div>
+       <div class="comparar"><figure>${img(de(conPose[0],pose),"grande")}<figcaption>Antes · ${fdate(conPose[0])}</figcaption></figure><figure>${img(de(conPose[conPose.length-1],pose),"grande")}<figcaption>Ahora · ${fdate(conPose[conPose.length-1])}</figcaption></figure></div>` : "";
+  return `<div class="card stack"><div class="sec-head"><b>Fotos de evolución</b><button class="btn sm primary" data-pact="foto-nueva" data-id="${esc(id)}">+ Fotos</button></div>
+    ${fechas.length ? comparar + (()=>{ const dia = f=>`<div class="foto-dia"><div class="sec-head"><span class="small"><b>${fdate(f)}</b>${f.slice(0,4)!==TODAY.slice(0,4)?" "+f.slice(0,4):""}</span><button class="btn sm danger" data-pact="foto-del" data-id="${esc(id)}" data-fecha="${f}" aria-label="Borrar fotos del ${fdate(f)}">✕</button></div><div class="fotos3">${POSES.map(([k,t])=>`<figure>${img(de(f,k))}<figcaption>${t}</figcaption></figure>`).join("")}</div></div>`; const rev = fechas.slice().reverse();
+        return dia(rev[0]) + (rev.length>1 ? `<details><summary class="small">Ver fotos anteriores (${rev.length-1})</summary><div class="stack">${rev.slice(1).map(dia).join("")}</div></details>` : ""); })()
+      : `<div class="empty small">${admin ? "Todavía no hay fotos." : "Sacate fotos de frente, perfil y espalda una vez por mes, con la misma luz y ropa, y compará el antes y el ahora."}</div>`}
+    <span class="small muted">🔒 Las fotos son privadas: solo ${admin ? "el alumno y los profes las ven" : "vos y tu profe las ven"}.</span></div>`;
+}
+async function pintarFotos(){
+  const imgs = [...document.querySelectorAll("img[data-foto]")]; if (!imgs.length) return;
+  const falta = [...new Set(imgs.map(i=>i.dataset.foto))].filter(p => !S.fotoUrl[p] || S.fotoUrl[p].exp < Date.now());
+  if (falta.length) {
+    const { data } = await sb.storage.from("archivos").createSignedUrls(falta, 3600);
+    (data||[]).forEach(d => { if (d.signedUrl) S.fotoUrl[d.path] = { url:d.signedUrl, exp:Date.now()+50*60000 }; });
+  }
+  document.querySelectorAll("img[data-foto]").forEach(i => { const u = S.fotoUrl[i.dataset.foto]; if (u && i.getAttribute("src") !== u.url) i.src = u.url; });
+}
+async function achicarFoto(file, max=1280){
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation:"from-image" });
+    const k = Math.min(1, max/Math.max(bmp.width, bmp.height));
+    const c = document.createElement("canvas"); c.width = Math.round(bmp.width*k); c.height = Math.round(bmp.height*k);
+    c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.82));
+  } catch { return file; }
+}
+function fotoForm(id){
+  openSheet("Fotos de evolución", `<form id="ff" class="stack">
+    <label class="f">Fecha<input id="ff-fecha" type="date" value="${TODAY}"></label>
+    ${POSES.map(([k,t])=>`<label class="f">${t}<input id="ff-${k}" type="file" accept="image/*"></label>`).join("")}
+    <span class="small muted">Podés subir una, dos o las tres. Consejo: misma luz, misma ropa y a la misma distancia cada vez.</span>
+    <div class="actions"><button class="btn primary" type="submit" id="ff-ok">Guardar fotos</button></div></form>`, () => {
+    $("#ff").onsubmit = async e => {
+      e.preventDefault();
+      const fecha = $("#ff-fecha").value || TODAY;
+      const sel = POSES.map(([k])=>[k, $("#ff-"+k).files[0]]).filter(([,f])=>f);
+      if (!sel.length) return toast("Elegí al menos una foto");
+      const btn = $("#ff-ok"); btn.disabled = true; btn.textContent = "Subiendo…";
+      let ok = 0;
+      for (const [pose, f] of sel) {
+        const blob = await achicarFoto(f);
+        const path = `${id}/progreso/${fecha}-${pose}-${Date.now()}.jpg`;
+        const up = await sb.storage.from("archivos").upload(path, blob, { contentType:"image/jpeg" });
+        if (up.error) { toast("No se pudo subir: " + errMsg(up.error)); continue; }
+        const viejas = (S.fotos||[]).filter(x=>x.alumno_id===id && x.fecha===fecha && x.pose===pose);
+        const ins = await sb.from("fotos_progreso").insert({ alumno_id:id, fecha, pose, path });
+        if (ins.error) { await sb.storage.from("archivos").remove([path]); toast("No se pudo guardar: " + errMsg(ins.error)); continue; }
+        if (viejas.length) { await sb.from("fotos_progreso").delete().in("id", viejas.map(x=>x.id)); await sb.storage.from("archivos").remove(viejas.map(x=>x.path)); }
+        ok++;
+      }
+      if (ok) { toast(ok===1 ? "Foto guardada" : `${ok} fotos guardadas`); closeSheet(); }
+      else { btn.disabled = false; btn.textContent = "Guardar fotos"; }
+      await recargar();
+    };
+  });
+}
+function borrarFotos(id, fecha){
+  const lista = (S.fotos||[]).filter(f=>f.alumno_id===id && f.fecha===fecha);
+  openSheet("Borrar fotos", `<p>¿Borrar las fotos del <b>${fdate(fecha)}</b>? No se pueden recuperar.</p><div class="actions"><button class="btn danger" id="bf-ok">Borrar fotos</button></div>`, () => {
+    $("#bf-ok").onclick = async () => {
+      await sb.storage.from("archivos").remove(lista.map(f=>f.path));
+      if (await run(() => sb.from("fotos_progreso").delete().in("id", lista.map(f=>f.id)), "Fotos borradas")) closeSheet();
+    };
+  });
+}
+document.addEventListener("click", async e => {
+  const c = e.target.closest("[data-prog-ej],[data-prog-med],[data-prog-pose]");
+  if (c) { const id = c.dataset.progId;
+    if (c.dataset.progEj) S.progEj[id] = c.dataset.progEj;
+    if (c.dataset.progMed) S.progMed[id] = c.dataset.progMed;
+    if (c.dataset.progPose) S.progPose[id] = c.dataset.progPose;
+    return render(); }
+  const t = e.target.closest("[data-pact]"); if (!t) return;
+  const act = t.dataset.pact, id = t.dataset.id;
+  if (act==="med-nueva") medicionForm(id);
+  else if (act==="carga-nueva") cargaForm(id);
+  else if (act==="foto-nueva") fotoForm(id);
+  else if (act==="foto-del") borrarFotos(id, t.dataset.fecha);
+  else if (act==="prog-del") { if (await borrar(t.dataset.tabla, id)) toast("Registro borrado"); }
 });
 function medicionForm(id){
   openSheet("Nueva medición", `<form id="fm" class="stack">
     <label class="f">Fecha<input id="fm-fecha" type="date" value="${TODAY}"></label>
     <div class="grid2">${CAMPOS.map(([k,t,u])=>`<label class="f">${t} (${u})<input id="fm-${k}" inputmode="decimal" placeholder="—"></label>`).join("")}</div>
     <label class="f">Notas<input id="fm-notas" placeholder="Opcional"></label>
+    <span class="small muted">Completá solo lo que midas. Para comparar bien: a la mañana, en ayunas, y el abdomen a la altura del ombligo.</span>
     <div class="actions"><button class="btn primary" type="submit">Guardar medición</button></div></form>`, () => {
     $("#fm").onsubmit = async e => {
       e.preventDefault();
@@ -626,7 +719,7 @@ function medicionForm(id){
   });
 }
 function cargaForm(id){
-  const a = S.alumnos.get(id) || {};
+  const a = S.alumnos.get(id) || (S.ficha && S.ficha.id===id ? S.ficha : {});
   const deRutina = ((a.rutina&&a.rutina.dias)||[]).flatMap(d=>(d.ejercicios||[]).map(x=>x.nombre)).filter(Boolean);
   openSheet("Registrar carga", `<form id="fc" class="stack">
     <label class="f">Ejercicio<input id="fc-ej" list="ej-lib" required placeholder="Sentadilla" value="${esc(S.progEj[id]||deRutina[0]||"")}" autocomplete="off"></label>
@@ -736,10 +829,7 @@ function cumplesInicio(){
 /* ----- Acciones de administrador ----- */
 async function accionesExtra(act, t){
   const id = t.dataset.id;
-  if (act==="med-nueva") medicionForm(id);
-  else if (act==="carga-nueva") cargaForm(id);
-  else if (act==="prog-del") { if (await borrar(t.dataset.tabla, id)) toast("Registro borrado"); }
-  else if (act==="ej-nuevo") ejercicioForm();
+  if (act==="ej-nuevo") ejercicioForm();
   else if (act==="ej-editar") ejercicioForm((S.biblio||[]).find(e=>e.id===id));
   else return false;
   return true;
@@ -768,7 +858,7 @@ function render(){
   const focusSearch = document.activeElement && document.activeElement.id==="buscar"; const pos = focusSearch ? document.activeElement.selectionStart : 0;
   $("#view").innerHTML = r==="alumnos" ? vAlumnos() : r.startsWith("alumno-") ? vAlumno(r.slice(7)) : r==="pagos" ? vPagos() : r==="asistencia" ? vAsistencia() : r==="reportes" ? vReportes() : r==="ejercicios" ? vEjercicios() : vInicio();
   if (focusSearch){ const b=$("#buscar"); if(b){ b.focus(); b.setSelectionRange(pos,pos);} }
-  pintarPush();
+  pintarPush(); pintarFotos();
 }
 window.addEventListener("hashchange", () => { S.editRutina=false; S.draft=null; render(); window.scrollTo(0,0); });
 
