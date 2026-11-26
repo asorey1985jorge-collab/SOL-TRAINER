@@ -120,3 +120,9 @@ details summary{cursor:pointer;color:var(--accent);font-weight:600}
 a.chip{text-decoration:none}
 @media(max-width:420px){.tabs a{font-size:13px;letter-spacing:.02em;padding-inline:2px}}
 [hidden]{display:none!important}
+/* Frase motivacional del día (Inicio) */
+.frase{position:relative;margin-top:14px;padding:14px 16px 14px 18px;border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.28),rgba(192,38,211,.18));border:1px solid rgba(168,85,247,.55);box-shadow:var(--glow);overflow:hidden}
+.frase::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#c084fc,#c026d3);box-shadow:0 0 12px rgba(192,132,252,.9)}
+.frase small{display:block;color:var(--accent-2);font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:13px;text-shadow:0 0 10px rgba(168,85,247,.6)}
+.frase p{margin:4px 0 0;font-family:var(--font-display);font-weight:600;font-style:italic;font-size:22px;line-height:1.2;text-wrap:balance}
+.frase+.card{margin-top:12px}
