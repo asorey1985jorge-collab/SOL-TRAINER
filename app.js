@@ -833,11 +833,24 @@ async function activarPush(){
 async function pintarPush(){
   const box = $("#push-box"); if (!box) return;
   const st = await pushEstado();
-  const txt = S.role==="admin" ? "Recibí un aviso 48 horas antes de que venza cada cuota, y un resumen de las vencidas." : "Activá los avisos y te llega una notificación 48 horas antes de que venza tu cuota y cuando tu profe te manda una dieta o rutina nueva.";
-  box.innerHTML = st==="activo" ? `<span class="small muted">🔔 Avisos activados en este celular.</span>`
-    : st==="inactivo" ? `<div class="notice"><span>${txt}</span><button class="btn sm primary" id="push-on">Activar avisos</button></div>`
-    : st==="ios-instalar" ? `<div class="notice"><span>Para recibir avisos en iPhone, primero agregá la app a la pantalla de inicio (botón Compartir y luego “Agregar a inicio”) y abrila desde ahí.</span></div>`
-    : st==="bloqueado" ? `<div class="notice"><span>Bloqueaste las notificaciones. Habilitalas desde la configuración del navegador para recibir los avisos.</span></div>`
+  const items = S.role==="admin" ? [
+      ["⏰","Te avisamos 2 días antes de que venza cada cuota, y te llega el resumen de las vencidas."],
+      ["🙋","Te enterás cuando un alumno nuevo se registra y espera tu confirmación."],
+      ["📲","No tenés que entrar a revisar: la app te avisa sola, aunque esté cerrada."]
+    ] : [
+      ["⏰","Te recordamos 2 días antes de que venza tu cuota, así no se te pasa."],
+      ["✅","Te confirmamos cuando queda registrado tu pago."],
+      ["📋","Te enterás al instante cuando tu profe te sube una rutina o dieta nueva."],
+      ["🎉","Recibís las novedades de "+esc(GYM)+" y tu saludo de cumpleaños."]
+    ];
+  const porque = `<div class="push-why"><b>¿Por qué activar los avisos?</b>
+    <ul>${items.map(([i,t])=>`<li><span aria-hidden="true">${i}</span><span>${t}</span></li>`).join("")}</ul>
+    <span class="small muted">Es gratis, no ocupa lugar y los podés desactivar cuando quieras.</span></div>`;
+  const iosTip = esIOS ? `<span class="small muted">En iPhone, abrí siempre la app desde el ícono de la pantalla de inicio para que lleguen los avisos.</span>` : "";
+  box.innerHTML = st==="activo" ? `<span class="small muted">🔔 Avisos activados en este celular. ¡Listo, no te vas a perder nada!</span>`
+    : st==="inactivo" ? `<div class="notice push-card">${porque}${iosTip}<button class="btn primary" id="push-on" style="width:100%;justify-content:center">🔔 Activar avisos</button></div>`
+    : st==="ios-instalar" ? `<div class="notice push-card">${porque}<span><b>Para activarlos en iPhone:</b> tocá el botón Compartir, elegí “Agregar a inicio” y después abrí la app desde ese ícono. Ahí te va a aparecer el botón “Activar avisos”.</span></div>`
+    : st==="bloqueado" ? `<div class="notice push-card">${porque}<span><b>Las notificaciones están bloqueadas.</b> Habilitalas desde la configuración del celular (Notificaciones) para esta app o navegador, y volvé a abrir la app.</span></div>`
     : "";
   const b = $("#push-on"); if (b) b.onclick = activarPush;
 }
