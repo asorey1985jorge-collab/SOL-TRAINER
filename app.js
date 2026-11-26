@@ -96,7 +96,7 @@ function vLogin(modo = "entrar", aviso = ""){
   $("#top").hidden = true; $("#tabs").hidden = true;
   const titulos = { entrar:"Ingresar", crear:"Crear cuenta", olvido:"Recuperar contraseña", nueva:"Elegí una contraseña nueva" };
   $("#view").innerHTML = `<form class="login card" id="flog">
-    <div class="brand">Sol <span>Trainer</span></div>
+    <div class="brand"><img src="icons/logo.png" alt="Logo Sol Trainer"><div>Sol <span>Trainer</span></div></div>
     <div class="sub">${esc(titulos[modo])}</div>
     ${aviso ? `<div class="notice">${aviso}</div>` : ""}
     ${modo==="crear" ? `<label class="f">Nombre y apellido<input id="l-nombre" autocomplete="name" required></label>
