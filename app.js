@@ -101,8 +101,12 @@ function vLogin(modo = "entrar", aviso = ""){
     ${aviso ? `<div class="notice">${aviso}</div>` : ""}
     ${modo==="crear" ? `<label class="f">Nombre y apellido<input id="l-nombre" autocomplete="name" required></label>
     <label class="f">Teléfono (WhatsApp)<input id="l-tel" inputmode="tel" autocomplete="tel" placeholder="11 2345 6789" required></label>
+    <label class="f">Objetivo<input id="l-obj" placeholder="Hipertrofia, bajar peso…"></label>
+    <label class="f">Fecha de nacimiento<input id="l-nac" type="date"></label>
     <label class="f">Plan<select id="l-plan">${PLANES.map(x=>`<option>${esc(x[0])}</option>`).join("")}</select></label>
-    <label class="f">Fecha de nacimiento (opcional)<input id="l-nac" type="date"></label>` : ""}
+    <div class="small muted" id="l-cuota"></div>
+    <label class="f">¿Cómo vas a pagar la cuota?<select id="l-medio"><option>Efectivo</option><option>Transferencia</option></select></label>
+    <label class="f">Lesiones, salud o apto médico (opcional)<textarea id="l-notas" placeholder="Ej.: lesión de rodilla, tengo apto médico"></textarea></label>` : ""}
     ${modo!=="nueva" ? `<label class="f">Email<input id="l-email" type="email" autocomplete="email" required></label>` : ""}
     ${modo!=="olvido" ? `<label class="f">Contraseña<input id="l-pass" type="password" minlength="6" autocomplete="${modo==="entrar"?"current-password":"new-password"}" required></label>` : ""}
     <button class="btn primary" type="submit" style="justify-content:center">${esc(titulos[modo])}</button>
@@ -112,13 +116,19 @@ function vLogin(modo = "entrar", aviso = ""){
     ${modo==="crear" ? `<p class="small muted" style="margin:0">Con estos datos queda hecha tu ficha. El profe confirma tu registro y tu primer pago, y ya ves tu rutina y tu cuota.</p>` : ""}
   </form>`;
   document.querySelectorAll("[data-m]").forEach(b => b.onclick = () => vLogin(b.dataset.m));
+  if (modo==="crear") {
+    let precios = null;
+    const verCuota = () => { const x = PLANES.find(x=>x[0]===$("#l-plan").value); const v = precios && x && precios[x[1]]; $("#l-cuota").innerHTML = v ? `Cuota mensual: <b>${money(v)}</b>` : ""; };
+    $("#l-plan").onchange = verCuota;
+    sb.rpc("precios").then(({ data }) => { precios = data; verCuota(); }, () => {});
+  }
   $("#flog").onsubmit = async e => {
     e.preventDefault();
     const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
     const email = $("#l-email")?.value.trim(), password = $("#l-pass")?.value;
     let r;
     if (modo==="entrar") r = await sb.auth.signInWithPassword({ email, password });
-    else if (modo==="crear") r = await sb.auth.signUp({ email, password, options:{ emailRedirectTo: APP_URL, data:{ nombre:$("#l-nombre").value.trim(), telefono:$("#l-tel").value.trim(), plan:$("#l-plan").value, nacimiento:$("#l-nac").value||null } } });
+    else if (modo==="crear") r = await sb.auth.signUp({ email, password, options:{ emailRedirectTo: APP_URL, data:{ nombre:$("#l-nombre").value.trim(), telefono:$("#l-tel").value.trim(), plan:$("#l-plan").value, nacimiento:$("#l-nac").value||null, objetivo:$("#l-obj").value.trim(), notas:$("#l-notas").value.trim(), medio:$("#l-medio").value } } });
     else if (modo==="olvido") r = await sb.auth.resetPasswordForEmail(email, { redirectTo: APP_URL });
     else r = await sb.auth.updateUser({ password });
     btn.disabled = false;
@@ -327,13 +337,13 @@ function nuevosInicio(){
 function confirmarNuevo(a){
   openSheet("Confirmar alumno nuevo", `
   <form id="fn" class="stack">
-    <div class="card small"><b>${esc(a.nombre)}</b><br>${esc(a.email||"")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.nacimiento?`<br>Nació el ${fdate(a.nacimiento)}`:""}</div>
+    <div class="card small"><b>${esc(a.nombre)}</b><br>${esc(a.email||"")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.nacimiento?`<br>Nació el ${fdate(a.nacimiento)}`:""}${a.objetivo?`<br>Objetivo: ${esc(a.objetivo)}`:""}${a.notas?`<br>Salud: ${esc(a.notas)}`:""}${a.medio_pago?`<br>Va a pagar en <b>${esc(a.medio_pago.toLowerCase())}</b>`:""}</div>
     <div class="grid2">
       <label class="f">Plan<select id="fn-plan">${[...PLANES.map(x=>x[0]), ...(a.plan && !PLANES.some(x=>x[0]===a.plan) ? [a.plan] : [])].map(pl=>`<option ${pl===a.plan?"selected":""}>${esc(pl)}</option>`).join("")}</select></label>
       <label class="f">Cuota mensual ($)<input id="fn-cuota" inputmode="numeric" value="${esc(a.cuota||"")}" placeholder="25000"></label>
     </div>
     <div class="card stack small"><label style="display:flex;gap:8px;align-items:center;font-size:15px"><input type="checkbox" id="fn-pago" style="width:auto" checked> Ya pagó la primera cuota</label>
-      <div class="grid2"><label class="f">Medio de pago<select id="fn-medio"><option>Efectivo</option><option>Transferencia</option></select></label>
+      <div class="grid2"><label class="f">Medio de pago<select id="fn-medio">${["Efectivo","Transferencia"].map(m=>`<option ${m===a.medio_pago?"selected":""}>${m}</option>`).join("")}</select></label>
       <label class="f">Si no pagó, la cuota vence el<input id="fn-vence" type="date" value="${addMonths(TODAY,1)}"></label></div>
       <span class="muted">Se registra el pago de hoy y la cuota vence en un mes.</span></div>
     <div class="actions"><button class="btn primary" type="submit">Confirmar alta</button></div>
