@@ -712,7 +712,7 @@ function medicionForm(id){
       e.preventDefault();
       const d = { alumno_id:id, fecha:$("#fm-fecha").value||TODAY, notas:$("#fm-notas").value.trim()||null };
       let alguno = false;
-      CAMPOS.forEach(([k]) => { const v = $("#fm-"+k).value.replace(",",".").trim(); d[k] = v==="" ? null : Number(v); if (v!=="") alguno = true; });
+      CAMPOS.forEach(([k]) => { const v = $("#fm-"+k).value.replace(",",".").trim(); if (v!=="") { d[k] = Number(v); alguno = true; } });
       if (!alguno) return toast("Cargá al menos un valor");
       if (await guardar("mediciones", d)) closeSheet();
     };
