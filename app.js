@@ -311,6 +311,22 @@ function pagoForm(alumnoId){
   });
 }
 
+function corregirVence(a){
+  openSheet("Corregir fecha de pago", `
+  <form id="fv" class="stack">
+    <p style="margin:0">¿Hasta qué fecha tiene pagado <b>${esc(a.nombre)}</b>?</p>
+    <label class="f">Pagado hasta<input id="fv-fecha" type="date" value="${esc(a.vence||addMonths(TODAY,1))}" required></label>
+    <span class="muted small">Esto solo cambia la fecha. No registra ni borra pagos. Si cargaste un pago de más, también podés tocar <b>Anular</b> en su historial de pagos.</span>
+    <div class="actions"><button class="btn primary" type="submit">Guardar fecha</button></div>
+  </form>`, () => {
+    $("#fv").onsubmit = async e => {
+      e.preventDefault();
+      const f = $("#fv-fecha").value; if (!f) return;
+      if (await run(() => sb.from("alumnos").update({ vence:f }).eq("id", a.id), `Ahora figura pagado hasta el ${fdate(f)}`)) closeSheet();
+    };
+  });
+}
+
 function anularPago(p){
   openSheet("Anular pago", `<p>¿Anular el pago de <b>${esc(p.nombre)}</b> por ${money(p.monto)} del ${fdate(p.fecha)}?</p><p class="muted small">Si fue su último pago, su vencimiento vuelve al ${p.vence_anterior ? fdate(p.vence_anterior) : "estado sin pagos"}.</p><div class="actions"><button class="btn danger" id="an-ok">Anular pago</button></div>`, () => {
     $("#an-ok").onclick = async () => { if (await run(() => sb.rpc("anular_pago", { p_pago:p.id }), "Pago anulado")) closeSheet(); };
@@ -450,7 +466,7 @@ function vAlumno(id){
   <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><div class="avatar" style="width:52px;height:52px;font-size:22px">${esc(initials(a.nombre))}</div><div style="min-width:0"><h2 style="margin:0">${esc(a.nombre)}</h2><span class="pill ${e.k}">${esc(e.t)}</span></div></div>
   <div class="card" style="margin-top:12px"><div class="grid2 small">
     <div><span class="muted">Plan</span><br>${esc(a.plan||"—")}</div><div><span class="muted">Cuota</span><br><span class="num">${money(a.cuota)}</span></div>
-    <div><span class="muted">Pagado hasta</span><br>${a.vence?fdate(a.vence):"Sin pagos"}</div><div><span class="muted">Asistencias (30 días)</span><br><span class="num">${vino}</span></div>
+    <div><span class="muted">Pagado hasta</span><br>${a.vence?fdate(a.vence):"Sin pagos"} <button class="linkbtn" data-act="vence" data-id="${esc(id)}">Corregir</button></div><div><span class="muted">Asistencias (30 días)</span><br><span class="num">${vino}</span></div>
     <div><span class="muted">Teléfono</span><br>${esc(a.telefono||"—")}</div><div><span class="muted">Objetivo</span><br>${esc(a.objetivo||"—")}</div>
     <div><span class="muted">Cumpleaños</span><br>${a.nacimiento?`${fdate(a.nacimiento)} · ${edad(a.nacimiento)} años${esCumple(a.nacimiento)?" 🎂 ¡hoy!":""}`:"—"}</div>
   </div>${a.notas?`<p class="small" style="margin:10px 0 0"><span class="muted">Notas privadas:</span> ${esc(a.notas)}</p>`:""}
@@ -784,6 +800,7 @@ document.addEventListener("click", async e => {
   else if (act==="nuevo-rechazar") rechazarNuevo(S.alumnos.get(id));
   else if (act==="editar") alumnoForm(S.alumnos.get(id));
   else if (act==="pago") pagoForm(id);
+  else if (act==="vence") corregirVence(S.alumnos.get(id));
   else if (act==="anular") anularPago(S.pagos.find(p=>p.id===id));
   else if (act==="copiar-rec") copy(recordatorio(S.alumnos.get(id)));
   else if (act==="arch-subir") subirArchivo(id);
