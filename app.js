@@ -362,6 +362,7 @@ function confirmarNuevo(a){
       <label class="f">Plan<select id="fn-plan">${[...PLANES.map(x=>x[0]), ...(a.plan && !PLANES.some(x=>x[0]===a.plan) ? [a.plan] : [])].map(pl=>`<option ${pl===a.plan?"selected":""}>${esc(pl)}</option>`).join("")}</select></label>
       <label class="f">Cuota mensual ($)<input id="fn-cuota" inputmode="numeric" value="${esc(a.cuota||"")}" placeholder="25000"></label>
     </div>
+    <span class="small muted" id="fn-cuota-aviso" style="margin-top:-4px">Para confirmar el alta tenés que cargar el valor de la cuota.</span>
     <div class="card stack small"><label style="display:flex;gap:8px;align-items:center;font-size:15px"><input type="checkbox" id="fn-pago" style="width:auto" checked> Ya pagó la primera cuota</label>
       <div class="grid2"><label class="f">Medio de pago<select id="fn-medio">${["Efectivo","Transferencia"].map(m=>`<option ${m===a.medio_pago?"selected":""}>${m}</option>`).join("")}</select></label>
       <label class="f">Si no pagó, la cuota vence el<input id="fn-vence" type="date" value="${addMonths(TODAY,1)}"></label></div>
@@ -373,9 +374,14 @@ function confirmarNuevo(a){
     if (!a.cuota) precioPlan();
     $("#fn").onsubmit = async e => {
       e.preventDefault();
+      const cuota = Number($("#fn-cuota").value.replace(/\D/g,""))||0;
+      if (!cuota) {
+        const av = $("#fn-cuota-aviso"); av.className = "notice err small"; av.style.marginTop = "0";
+        av.innerHTML = "<span><b>Falta el valor de la cuota.</b> Cargalo para poder confirmar el alta.</span>";
+        $("#fn-cuota").focus(); return toast("Cargá el valor de la cuota para confirmar");
+      }
       const btn = e.target.querySelector("button[type=submit]"); btn.disabled = true;
       const pagoYa = $("#fn-pago").checked;
-      const cuota = Number($("#fn-cuota").value.replace(/\D/g,""))||0;
       const { error } = await sb.from("alumnos").update({ pendiente:false, activo:true, alta:TODAY, plan:$("#fn-plan").value, cuota, vence: pagoYa ? null : ($("#fn-vence").value||null) }).eq("id", a.id);
       if (error) { btn.disabled = false; return toast("No se pudo confirmar: " + errMsg(error)); }
       if (pagoYa) {
