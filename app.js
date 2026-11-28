@@ -38,6 +38,9 @@ const pendientes = () => [...S.alumnos.values()].filter(a => a.pendiente).sort((
 const activos = () => [...S.alumnos.values()].filter(a => a.activo !== false && !a.pendiente).sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
 
 const fraseHoy = () => { const t = window.SOL_FRASE_DEL_DIA && window.SOL_FRASE_DEL_DIA(TODAY); return t ? `<div class="frase"><small>Frase del día</small><p>${esc(t)}</p></div>` : ""; };
+const TIPO_TIP = { t: ["🏋️", "Técnica"], n: ["🥗", "Nutrición"], h: ["💡", "Hábitos"] };
+const tipHoy = () => { const x = window.SOL_TIP_DEL_DIA && window.SOL_TIP_DEL_DIA(TODAY); if (!x) return ""; const [ic, nom] = TIPO_TIP[x[0]] || TIPO_TIP.h;
+  return `<div class="tip"><span class="tip-ic" aria-hidden="true">${ic}</span><div><small>Tip del día · ${nom}</small><p>${esc(x[1])}</p></div></div>`; };
 function toast(msg){ const t = document.createElement("div"); t.className="toast"; t.textContent=msg; document.body.appendChild(t); setTimeout(()=>t.remove(),2600); }
 async function copy(text){ try{ await navigator.clipboard.writeText(text); toast("Copiado"); }catch{ openSheet("Copiá el texto", `<textarea id="cp" style="min-height:180px">${esc(text)}</textarea>`); setTimeout(()=>{const c=$("#cp"); c&&c.select();},50); } }
 function waLink(tel, text){ let d=(tel||"").replace(/\D/g,""); if(!d) return null; if(!d.startsWith("54")) d="549"+d.replace(/^0/,""); return `https://wa.me/${d}?text=${encodeURIComponent(text)}`; }
@@ -184,7 +187,7 @@ function renderAlumno(){
   const cumple = esCumple(f.nacimiento) ? `<div class="notice" style="font-size:16px"><span>🎉 <b>¡Feliz cumpleaños, ${esc((f.nombre||"").split(" ")[0])}!</b> Todo el equipo de ${esc(GYM)} te desea un gran día.</span></div>` : "";
   $("#view").innerHTML = `${cumple}${alerta}<div id="push-box" style="margin-top:10px"></div>
   <h2>Hola, ${esc((f.nombre||"").split(" ")[0])}</h2>
-  ${fraseHoy()}
+  ${fraseHoy()}${tipHoy()}
   <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
     <div><div class="hero-days ${e.k}">${big}</div><div class="muted">${esc(label)}</div></div>
     <div style="text-align:right"><span class="pill ${e.k}">${esc(e.t)}</span><div class="small muted" style="margin-top:6px">${esc(f.plan||"")}<br>Cuota ${money(f.cuota)}</div></div>
@@ -403,7 +406,7 @@ function vInicio(){
   const cobrar = est.filter(([,e])=>e.k!=="ok").sort((x,y)=>(x[1].d??-999)-(y[1].d??-999));
   const pronto = est.filter(([,e])=>e.k==="warn").length, venc = est.filter(([,e])=>e.k==="bad").length;
   const alerta = (pronto||venc) ? `<div class="notice ${venc?"err":""}" style="cursor:pointer" data-go="alumnos" data-f="${venc?"bad":"warn"}"><span><b>Atención:</b> ${[pronto?`${pronto} ${pronto===1?"cuota vence":"cuotas vencen"} en los próximos 5 días`:"", venc?`${venc} ${venc===1?"está vencida":"están vencidas"}`:""].filter(Boolean).join(" y ")}.</span><span class="small">Ver →</span></div>` : "";
-  return `${fraseHoy()}${nuevosInicio()}${alerta}<div id="push-box" style="margin-top:10px"></div>
+  return `${fraseHoy()}${tipHoy()}${nuevosInicio()}${alerta}<div id="push-box" style="margin-top:10px"></div>
   <h2>Resumen</h2>
   <div class="kpis">
     <button class="kpi" data-go="alumnos" data-f="todos"><small>Alumnos activos</small><b>${al.length}</b></button>

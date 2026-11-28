@@ -117,3 +117,73 @@ window.SOL_FRASE_DEL_DIA = function (isoFecha) {
   const dia = Math.round(Date.UTC(y, m - 1, d) / 86400000); // días desde 1970: cambia a la medianoche
   return L[((dia * 37) % L.length + L.length) % L.length]; // 37 salta por la lista para que no se repita el orden obvio
 };
+
+// Tips del día: un consejo corto de técnica o nutrición, distinto cada día, debajo de la frase.
+// Para sumar o cambiar tips, editá esta lista. "t" = Técnica, "n" = Nutrición, "h" = Hábitos.
+window.SOL_TIPS = [
+["t","En la sentadilla, empujá el piso con todo el pie y mantené las rodillas en la dirección de las puntas."],
+["t","Antes de levantar peso, inflá la panza de aire y apretá el abdomen: protegés la espalda."],
+["t","Bajá el peso en 2 o 3 segundos. La parte lenta también hace crecer el músculo."],
+["t","En el peso muerto, la barra va pegada a las piernas todo el recorrido."],
+["t","Si no podés hacer la última repetición con buena técnica, esa no cuenta. Bajá el peso."],
+["t","En las flexiones, el cuerpo es una tabla: ni la cola arriba ni la cadera caída."],
+["t","En el press de banca, juntá los omóplatos y apoyalos firmes en el banco."],
+["t","Respirá: soltá el aire en el esfuerzo y tomalo al volver."],
+["t","En el remo, tirá con la espalda llevando los codos hacia atrás, no con los brazos."],
+["t","Calentá 5 a 10 minutos antes de entrenar. Las articulaciones te lo agradecen."],
+["t","En la plancha, apretá la cola y el abdomen. Mejor 20 segundos bien que 1 minuto mal."],
+["t","En las estocadas, el paso tiene que ser largo y la rodilla de atrás casi toca el piso."],
+["t","Mirá al frente al hacer sentadilla: si mirás para abajo, la espalda se arquea."],
+["t","Subí el peso de a poco. Cuando hagas todas las series con facilidad, sumá un poquito."],
+["t","En el hip thrust, el mentón va hacia el pecho y apretás la cola arriba un segundo."],
+["t","Los hombros lejos de las orejas: en casi todos los ejercicios, bajalos y relajalos."],
+["t","En las dominadas, bajá hasta estirar los brazos. El recorrido completo rinde más."],
+["t","No trabes las rodillas ni los codos al terminar cada repetición."],
+["t","En el press de hombros, no arquees la espalda: apretá cola y abdomen."],
+["t","Estirá al final del entreno, 20 o 30 segundos por músculo, sin rebotar."],
+["t","Movimiento controlado siempre: si tenés que balancearte, el peso es mucho."],
+["t","Respetá el descanso entre series: es parte del entrenamiento, no tiempo perdido."],
+["t","En el curl de bíceps, los codos quietos al costado del cuerpo."],
+["t","Si sentís dolor punzante en una articulación, pará y avisale al profe."],
+["t","En la sentadilla, bajá hasta donde puedas mantener la espalda recta."],
+["n","Tomá agua durante todo el día, no solo cuando entrenás. Si tenés sed, ya vas tarde."],
+["n","Sumá proteína en cada comida: huevo, carne, pollo, pescado, lácteos o legumbres."],
+["n","Comé algo liviano 1 o 2 horas antes de entrenar: una fruta, un yogur o una tostada."],
+["n","Después de entrenar, una comida con proteína y algo de carbohidrato ayuda a recuperar."],
+["n","La mitad del plato, verduras. Le dan volumen y te llenan sin muchas calorías."],
+["n","Las bebidas con azúcar suman calorías sin llenarte. Mejor agua o agua saborizada natural."],
+["n","El huevo es barato, rinde y tiene proteína de calidad. Aprovechalo."],
+["n","No hace falta dejar de comer lo que te gusta: la clave está en la cantidad y la frecuencia."],
+["n","Las legumbres (lentejas, garbanzos, porotos) son proteína económica y con fibra."],
+["n","Comé despacio: el cuerpo tarda unos 20 minutos en avisarte que está lleno."],
+["n","Cociná de más y guardá porciones: tener comida lista evita picotear cualquier cosa."],
+["n","Una fruta es la mejor colación: práctica, dulce y con fibra."],
+["n","Cuidado con el mate con azúcar: muchos mates al día suman un montón."],
+["n","Leé las etiquetas: si el azúcar está entre los primeros ingredientes, es un producto muy dulce."],
+["n","No saltees el desayuno si después llegás con hambre feroz a la noche."],
+["n","El alcohol frena la recuperación muscular. Si tomás, que sea poco y con agua al lado."],
+["n","Los frutos secos son buenos, pero en puñadito: tienen muchas calorías."],
+["n","Si entrenás temprano, una banana antes te da energía rápida."],
+["n","Preferí lo casero a lo ultraprocesado: menos sal, menos azúcar y más nutrientes."],
+["n","El yogur natural con fruta es una colación con proteína y fácil de llevar."],
+["n","Comé pescado al menos una vez por semana: aporta grasas buenas."],
+["n","Las frituras, de vez en cuando. Al horno o a la plancha sale igual de rico."],
+["n","Pan, arroz y fideos no engordan solos: cuidá la porción y con qué los acompañás."],
+["n","Si querés bajar de peso, no dejes de comer: armá platos más chicos y completos."],
+["n","Antes de un suplemento, revisá tu alimentación. Consultalo con un profesional."],
+["h","Dormí 7 u 8 horas. El músculo se recupera y crece mientras descansás."],
+["h","Anotá tus cargas en la app: ver que progresás te motiva a seguir."],
+["h","Si un día no podés venir, caminá 30 minutos. Moverte siempre suma."],
+["h","Prepará el bolso la noche anterior: una excusa menos para faltar."],
+["h","Los músculos crecen en el descanso: respetá los días libres de tu rutina."],
+["h","Sacate una foto cada mes en la app: los cambios se ven más en fotos que en el espejo."],
+["h","Elegí un horario fijo para entrenar, como si fuera un turno que no podés perder."],
+["h","Subí escaleras en vez de usar el ascensor: suma movimiento sin darte cuenta."],
+["h","Si estás muy cansado o enfermo, descansar también es entrenar con cabeza."],
+["h","Ponete metas chicas y alcanzables: cada logro te empuja al siguiente."],
+];
+window.SOL_TIP_DEL_DIA = function (isoFecha) {
+  const L = window.SOL_TIPS; const [y, m, d] = isoFecha.split("-").map(Number);
+  const dia = Math.round(Date.UTC(y, m - 1, d) / 86400000);
+  return L[((dia * 23) % L.length + L.length) % L.length]; // 23 salta entre técnica, nutrición y hábitos
+};
