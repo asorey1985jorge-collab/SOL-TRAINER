@@ -95,6 +95,7 @@ async function subirArchivo(alumnoId){
 
 /* =================== LOGIN =================== */
 function vLogin(modo = "entrar", aviso = ""){
+  if (window.Crono) Crono.mostrar(false);
   $("#top").hidden = true; $("#tabs").hidden = true;
   const titulos = { entrar:"Ingresar", crear:"Crear cuenta", olvido:"Recuperar contraseña", nueva:"Elegí una contraseña nueva" };
   $("#view").innerHTML = `<form class="login card" id="flog">
@@ -170,6 +171,7 @@ async function cargarAlumno(){
 function renderAlumno(){
   $("#top").hidden = false; $("#tabs").hidden = true;
   const f = S.ficha;
+  if (window.Crono && (!f || f.pendiente)) Crono.mostrar(false);
   if (!f) { $("#view").innerHTML = `<div class="card" style="margin-top:16px"><h3>Tu cuenta está lista</h3><p>Todavía no está asociada a tu ficha del gimnasio. Pedile al profe que cargue este email en tu ficha:</p><p><b>${esc(S.email)}</b></p><button class="btn" id="reint">Ya me agregó, volver a cargar</button></div>`; $("#reint").onclick = cargarAlumno; return; }
   if (f.pendiente) {
     $("#view").innerHTML = `<div class="card stack" style="margin-top:16px"><h3 style="margin:0">¡Gracias por registrarte, ${esc((f.nombre||"").split(" ")[0])}!</h3><p style="margin:0">Tu registro está <b>pendiente de confirmación</b>. El profe lo confirma cuando registra tu primer pago, y ahí vas a ver tu rutina y tu cuota.</p>${f.plan?`<div class="small muted">Plan elegido: ${esc(f.plan)}${f.cuota?` · Cuota ${money(f.cuota)}`:""}</div>`:""}<button class="btn" id="reint">Volver a cargar</button></div>${comoPagar(f)}`;
@@ -193,13 +195,13 @@ function renderAlumno(){
   ${comoPagar(f)}
   <div class="band"><div class="cell"><small>Viniste en los últimos 30 días</small><b>${f.asistencias_30 ?? 0} veces</b></div></div>
   <h2>Tu rutina</h2>
-  ${dias.length ? rutinaView({rutina:f.rutina}) + (f.rutina_actualizada ? `<p class="small muted">Actualizada el ${fdate(f.rutina_actualizada)}</p>` : "") : `<div class="empty card">Tu profe todavía no cargó tu rutina.</div>`}
+  ${dias.length ? rutinaView({rutina:f.rutina}, true) + `<p class="small muted" style="margin:6px 2px 0">Al terminar cada serie tocá <b>⏱</b> en el ejercicio: arranca el descanso y lleva la cuenta de tus series.</p>` + (f.rutina_actualizada ? `<p class="small muted">Actualizada el ${fdate(f.rutina_actualizada)}</p>` : "") : `<div class="empty card">Tu profe todavía no cargó tu rutina.</div>`}
   <h2>Tu progreso</h2>
   ${f.id ? progresoView(f.id, false) : ""}
   <h2>Tus archivos</h2>
   <div class="list">${archivosLista(S.misArchivos||[], false)}</div>
   ${(f.ultimos_pagos||[]).length ? `<h2>Tus pagos</h2><div class="list">${f.ultimos_pagos.map(p=>`<div class="row"><div class="main"><div class="name num">${money(p.monto)}</div><div class="muted small">${fdate(p.fecha)} · cubre hasta ${fdate(p.hasta)}</div></div></div>`).join("")}</div>` : ""}`;
-  pintarPush(); pintarFotos();
+  pintarPush(); pintarFotos(); if (window.Crono) Crono.mostrar(true);
   const ca = $("#copiar-alias"); if (ca) ca.onclick = () => copy(S.config.alias);
 }
 
@@ -442,26 +444,28 @@ function vAlumnos(){
    : `<div class="empty">${S.alumnos.size ? "Ningún alumno coincide con el filtro." : "Todavía no cargaste alumnos. Tocá <b>Nuevo alumno</b> para empezar."}</div>`}</div>`;
 }
 
-function rutinaView(a){
+function rutinaView(a, alumno = false){
   const dias = (a.rutina && a.rutina.dias) || [];
   if (!dias.length) return `<div class="empty">Sin rutina cargada. Tocá <b>Editar rutina</b> para armarla.</div>`;
-  return `<div class="stack rt-view">${dias.map(d=>`<div class="day"><div class="day-head"><h3>${esc(d.nombre||"Día")}</h3><span class="small muted" style="margin-left:auto">${(d.ejercicios||[]).length} ejercicios</span></div>${(d.ejercicios||[]).map(x=>{
+  return `<div class="stack rt-view">${dias.map((d,di)=>`<div class="day"><div class="day-head"><h3>${esc(d.nombre||"Día")}</h3><span class="small muted" style="margin-left:auto">${(d.ejercicios||[]).length} ejercicios</span></div>${(d.ejercicios||[]).map((x,j)=>{
     const e = ejDe(x.nombre), sr = [x.series, x.reps].map(v=>String(v??"").trim()).filter(Boolean).join(" x ");
     const thumb = e && e.foto_path ? `<button class="ej-thumb" data-abrir="${esc(e.foto_path)}" aria-label="Ver foto de ${esc(x.nombre)}"><img data-foto="${esc(e.foto_path)}" alt=""></button>` : `<div class="ej-thumb vacia" aria-hidden="true">${esc(initials(x.nombre))}</div>`;
-    return `<div class="rt-ex">${thumb}<div class="main"><div class="name">${esc(x.nombre)}</div><div class="muted small">${x.carga?esc(x.carga):""}${videoDe(x.nombre)}</div></div>${sr?`<div class="sr num">${esc(sr)}</div>`:""}</div>`; }).join("")}</div>`).join("")}</div>`;
+    const desc = !alumno && String(x.descanso??"").trim() ? `${x.carga?" · ":""}Descanso ${esc(window.Crono && Crono.aSegundos(x.descanso) ? Crono.corto(Crono.aSegundos(x.descanso)) : x.descanso)}` : "";
+    const crono = alumno && window.Crono ? Crono.boton(x, `${di}-${j}-${x.nombre}`) : "";
+    return `<div class="rt-ex${crono?" con-crono":""}">${thumb}<div class="main"><div class="name">${esc(x.nombre)}</div><div class="muted small">${x.carga?esc(x.carga):""}${desc}${videoDe(x.nombre)}</div></div>${sr||crono?`<div class="rt-der">${sr?`<div class="sr num">${esc(sr)}</div>`:""}${crono}</div>`:""}</div>`; }).join("")}</div>`).join("")}</div>`;
 }
 function rutinaEditor(){
   const d = S.draft;
   return `${datalistEjercicios()}<div class="stack">${d.dias.map((dia,i)=>`<div class="day"><div class="day-head"><input data-r="dia" data-i="${i}" value="${esc(dia.nombre)}" placeholder="Día ${i+1}" aria-label="Nombre del día"><button class="btn sm danger" data-act="rt-deldia" data-i="${i}">Quitar día</button></div>
-    <div class="ex-labels"><span class="exn">Ejercicio</span><span>Series</span><span>Reps</span><span>Carga</span><span></span></div>
-    ${dia.ejercicios.map((x,j)=>`<div class="ex"><input class="exn" data-r="nombre" data-i="${i}" data-j="${j}" value="${esc(x.nombre)}" placeholder="Ejercicio" aria-label="Ejercicio" list="ej-lib"><input data-r="series" data-i="${i}" data-j="${j}" value="${esc(x.series)}" placeholder="4" aria-label="Series"><input data-r="reps" data-i="${i}" data-j="${j}" value="${esc(x.reps)}" placeholder="10" aria-label="Repeticiones"><input data-r="carga" data-i="${i}" data-j="${j}" value="${esc(x.carga)}" placeholder="20 kg" aria-label="Carga"><button class="btn sm" data-act="rt-delex" data-i="${i}" data-j="${j}" aria-label="Quitar ejercicio">✕</button></div>`).join("")}
+    <div class="ex-labels"><span class="exn">Ejercicio</span><span>Series</span><span>Reps</span><span>Carga</span><span title="Descanso entre series">Desc.</span><span></span></div>
+    ${dia.ejercicios.map((x,j)=>`<div class="ex"><input class="exn" data-r="nombre" data-i="${i}" data-j="${j}" value="${esc(x.nombre)}" placeholder="Ejercicio" aria-label="Ejercicio" list="ej-lib"><input data-r="series" data-i="${i}" data-j="${j}" value="${esc(x.series)}" placeholder="4" aria-label="Series"><input data-r="reps" data-i="${i}" data-j="${j}" value="${esc(x.reps)}" placeholder="10" aria-label="Repeticiones"><input data-r="carga" data-i="${i}" data-j="${j}" value="${esc(x.carga)}" placeholder="20 kg" aria-label="Carga"><input data-r="descanso" data-i="${i}" data-j="${j}" value="${esc(x.descanso??"")}" placeholder="auto" aria-label="Descanso entre series (vacío = automático)" inputmode="text"><button class="btn sm" data-act="rt-delex" data-i="${i}" data-j="${j}" aria-label="Quitar ejercicio">✕</button></div>`).join("")}
     <div style="padding:8px 10px"><button class="btn sm" data-act="rt-addex" data-i="${i}">+ Ejercicio</button></div></div>`).join("")}
     <div class="actions"><button class="btn" data-act="rt-adddia">+ Agregar día</button><button class="btn primary" data-act="rt-save">Guardar rutina</button><button class="btn" data-act="rt-cancel">Cancelar</button></div></div>`;
 }
 function rutinaTexto(a){
   const dias = (a.rutina&&a.rutina.dias)||[]; const e = estado(a);
   const cuota = e.d==null ? "Cuota: sin pagos registrados." : e.d<0 ? `Cuota: vencida desde el ${fdate(a.vence)}.` : `Cuota: al día hasta el ${fdate(a.vence)} (te quedan ${e.d} días).`;
-  return `Rutina de ${a.nombre} – ${GYM}\n${cuota}\n` + dias.map(d=>`\n*${d.nombre}*\n`+(d.ejercicios||[]).map(x=>`• ${x.nombre}: ${x.series}x${x.reps}${x.carga?` (${x.carga})`:""}`).join("\n")).join("\n");
+  return `Rutina de ${a.nombre} – ${GYM}\n${cuota}\n` + dias.map(d=>`\n*${d.nombre}*\n`+(d.ejercicios||[]).map(x=>`• ${x.nombre}: ${x.series}x${x.reps}${x.carga?` (${x.carga})`:""}${String(x.descanso??"").trim()?` · descanso ${x.descanso}`:""}`).join("\n")).join("\n");
 }
 
 function vAlumno(id){
@@ -862,7 +866,7 @@ function vRutinas(){
    : `<div class="empty card" style="margin-top:12px">Todavía no armaste rutinas modelo. Tocá <b>Nueva rutina modelo</b>, o abrí la ficha de un alumno que ya tenga rutina y tocá <b>Guardar como modelo</b>.</div>`}`;
 }
 function editarModelo(m){
-  const base = m && m.rutina && m.rutina.dias && m.rutina.dias.length ? m.rutina : { dias:[{ nombre:"Lunes · Rutina A", ejercicios:[{nombre:"",series:"",reps:"",carga:""}] }] };
+  const base = m && m.rutina && m.rutina.dias && m.rutina.dias.length ? m.rutina : { dias:[{ nombre:"Lunes · Rutina A", ejercicios:[{nombre:"",series:"",reps:"",carga:"",descanso:""}] }] };
   S.draft = JSON.parse(JSON.stringify({ dias: base.dias }));
   S.draft.modelo = true; S.draft.modeloId = m ? m.id : null; S.draft.nombre = m ? m.nombre : "";
   S.editRutina = true;
@@ -1024,6 +1028,7 @@ async function subirVideo(f){
 function render(){
   if (S.role === "alumno") return renderAlumno();
   if (S.role !== "admin") return;
+  if (window.Crono) Crono.mostrar(false);
   $("#top").hidden = false; $("#tabs").hidden = false;
   const r = location.hash.slice(1) || "inicio";
   const base = r.startsWith("alumno-") ? "alumnos" : ["reportes","ejercicios","rutinas","avisos"].includes(r) ? "mas" : r;
@@ -1077,14 +1082,14 @@ document.addEventListener("click", async e => {
   }
   else if (act==="copiar-inv") copy(invitacion(S.alumnos.get(id)));
   else if (act==="rt-copy") copy(rutinaTexto(S.alumnos.get(id)));
-  else if (act==="rt-edit"){ const a=S.alumnos.get(id); S.draft = JSON.parse(JSON.stringify((a.rutina&&a.rutina.dias&&a.rutina.dias.length)?a.rutina:{dias:[{nombre:"Día 1",ejercicios:[{nombre:"",series:"",reps:"",carga:""}]}]})); S.draft.alumnoId=id; S.editRutina=true; render(); }
+  else if (act==="rt-edit"){ const a=S.alumnos.get(id); S.draft = JSON.parse(JSON.stringify((a.rutina&&a.rutina.dias&&a.rutina.dias.length)?a.rutina:{dias:[{nombre:"Día 1",ejercicios:[{nombre:"",series:"",reps:"",carga:"",descanso:""}]}]})); S.draft.alumnoId=id; S.editRutina=true; render(); }
   else if (act==="rt-cancel"){ S.editRutina=false; S.draft=null; render(); }
-  else if (act==="rt-adddia"){ S.draft.dias.push({nombre:`Día ${S.draft.dias.length+1}`,ejercicios:[{nombre:"",series:"",reps:"",carga:""}]}); rerenderRt(); }
+  else if (act==="rt-adddia"){ S.draft.dias.push({nombre:`Día ${S.draft.dias.length+1}`,ejercicios:[{nombre:"",series:"",reps:"",carga:"",descanso:""}]}); rerenderRt(); }
   else if (act==="rt-deldia"){ S.draft.dias.splice(+t.dataset.i,1); rerenderRt(); }
-  else if (act==="rt-addex"){ S.draft.dias[+t.dataset.i].ejercicios.push({nombre:"",series:"",reps:"",carga:""}); rerenderRt(); const ins=document.querySelectorAll(`[data-r="nombre"][data-i="${t.dataset.i}"]`); ins[ins.length-1]?.focus(); }
+  else if (act==="rt-addex"){ S.draft.dias[+t.dataset.i].ejercicios.push({nombre:"",series:"",reps:"",carga:"",descanso:""}); rerenderRt(); const ins=document.querySelectorAll(`[data-r="nombre"][data-i="${t.dataset.i}"]`); ins[ins.length-1]?.focus(); }
   else if (act==="rt-delex"){ S.draft.dias[+t.dataset.i].ejercicios.splice(+t.dataset.j,1); rerenderRt(); }
   else if (act==="rt-save"){
-    const dias = S.draft.dias.map(d=>({nombre:d.nombre.trim()||"Día", ejercicios:d.ejercicios.filter(x=>x.nombre.trim()).map(x=>({nombre:x.nombre.trim(),series:String(x.series).trim(),reps:String(x.reps).trim(),carga:String(x.carga).trim()}))})).filter(d=>d.ejercicios.length);
+    const dias = S.draft.dias.map(d=>({nombre:d.nombre.trim()||"Día", ejercicios:d.ejercicios.filter(x=>x.nombre.trim()).map(x=>({nombre:x.nombre.trim(),series:String(x.series).trim(),reps:String(x.reps).trim(),carga:String(x.carga??"").trim(),descanso:String(x.descanso??"").trim()}))})).filter(d=>d.ejercicios.length);
     if (S.draft.modelo) return guardarModelo(dias);
     const aid = S.draft.alumnoId; S.editRutina=false; S.draft=null;
     await run(() => sb.from("alumnos").update({ rutina:{dias}, rutina_actualizada:TODAY }).eq("id", aid), "Rutina guardada");
