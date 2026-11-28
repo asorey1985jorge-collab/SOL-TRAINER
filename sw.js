@@ -1,6 +1,6 @@
 // Guarda la "cáscara" de la app para que abra rápido e instalable. Los datos siempre vienen en vivo de Supabase.
-const CACHE = "sol-trainer-v10";
-const SHELL = ["./", "index.html", "styles.css", "app.js", "frases.js", "config.js", "vendor/supabase-2.45.4.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/logo.png", "icons/apple-touch-icon.png"];
+const CACHE = "sol-trainer-v11";
+const SHELL = ["./", "index.html", "styles.css", "app.js", "frases.js", "crono.js", "config.js", "vendor/supabase-2.45.4.js", "manifest.webmanifest", "icons/icon-192.png", "icons/icon-512.png", "icons/logo.png", "icons/apple-touch-icon.png"];
 self.addEventListener("install", e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL))); self.skipWaiting(); });
 self.addEventListener("activate", e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k !== CACHE).map(k => caches.delete(k))))); self.clients.claim(); });
 self.addEventListener("fetch", e => {
