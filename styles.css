@@ -138,3 +138,22 @@ a.chip{text-decoration:none}
 figcaption{font-size:12px;color:var(--muted);text-align:center}
 .comparar figcaption{font-family:var(--font-display);font-size:15px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--accent-2)}
 .foto-dia{display:flex;flex-direction:column;gap:6px;padding-top:10px;border-top:1px solid var(--line)}
+/* Rutina: ejercicios con miniatura y series x reps */
+.rt-ex{display:flex;align-items:center;gap:12px;padding:10px 12px;border-top:1px solid var(--line)}
+.day-head + .rt-ex{border-top:0}
+.rt-ex .main{flex:1;min-width:0}
+.rt-ex .name{font-weight:600;line-height:1.25}
+.rt-ex .sr{font-family:var(--font-display);font-weight:700;font-size:22px;color:var(--accent-2);white-space:nowrap;text-shadow:0 0 10px rgba(192,132,252,.35)}
+.ej-thumb{width:56px;height:56px;flex:none;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:var(--surface-2);padding:0;display:grid;place-items:center;cursor:pointer}
+.ej-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ej-thumb.vacia{color:var(--accent-2);font-family:var(--font-display);font-weight:700;font-size:18px;cursor:default;background:var(--accent-soft);border-color:rgba(168,85,247,.35)}
+.row .ej-thumb{width:44px;height:44px}
+.rt-ex .vid{margin-left:6px}
+/* Avisos a todos */
+.aviso-gral{border-color:var(--accent);box-shadow:var(--glow);align-items:flex-start}
+.aviso-gral .msg{display:block;white-space:pre-line;margin-top:4px;font-size:15px}
+.aviso-txt{white-space:pre-line !important}
+/* Asignar rutina modelo */
+.asg-list{max-height:46vh;overflow-y:auto}
+.asg-row{cursor:pointer}
+.asg-row input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
