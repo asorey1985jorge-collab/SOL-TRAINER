@@ -24,7 +24,7 @@ if (!window.supabase || !CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("TU-PROYE
 }
 const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
 
-const S = { medic:[], cargas:[], biblio:[], fotos:[], fotoUrl:{}, progEj:{}, progMed:{}, progPose:{}, config:{}, role:null, alumnos:new Map(), pagos:[], asist:new Map(), filter:"todos", q:"", draft:null, editRutina:false, asistFecha:null, ficha:null };
+const S = { medic:[], cargas:[], biblio:[], fotos:[], modelos:[], avisos:[], fotoUrl:{}, progEj:{}, progMed:{}, progPose:{}, config:{}, role:null, alumnos:new Map(), pagos:[], asist:new Map(), filter:"todos", q:"", draft:null, editRutina:false, asistFecha:null, ficha:null };
 
 function estado(a){
   if (a.activo === false) return {k:"off", t:"Inactivo", d:null};
@@ -182,7 +182,8 @@ function renderAlumno(){
   const alerta = e.k==="bad" && e.d!=null ? `<div class="notice err"><span><b>Tu cuota está vencida.</b> Acercate al gimnasio para regularizarla.</span></div>`
     : e.k==="warn" ? `<div class="notice"><span><b>${e.d===0 ? "Tu cuota vence hoy." : `Tu cuota vence en ${e.d} ${e.d===1?"día":"días"}.`}</b> Podés abonar en el gym o por transferencia.</span></div>` : "";
   const cumple = esCumple(f.nacimiento) ? `<div class="notice" style="font-size:16px"><span>🎉 <b>¡Feliz cumpleaños, ${esc((f.nombre||"").split(" ")[0])}!</b> Todo el equipo de ${esc(GYM)} te desea un gran día.</span></div>` : "";
-  $("#view").innerHTML = `${cumple}${alerta}<div id="push-box" style="margin-top:10px"></div>
+  const avisos = avisosVigentes().map(v=>`<div class="notice aviso-gral"><span><b>📢 Aviso de ${esc(GYM)}</b><span class="msg">${esc(v.mensaje)}</span></span><span class="small muted">${fdate(v.created_at.slice(0,10))}</span></div>`).join("");
+  $("#view").innerHTML = `${avisos}${cumple}${alerta}<div id="push-box" style="margin-top:10px"></div>
   <h2>Hola, ${esc((f.nombre||"").split(" ")[0])}</h2>
   ${fraseHoy()}
   <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
@@ -204,13 +205,16 @@ function renderAlumno(){
 
 /* =================== ADMIN: datos =================== */
 async function cargarExtras(){
-  const [m, c, b, ft] = await Promise.all([
+  const [m, c, b, ft, av, rm] = await Promise.all([
     sb.from("mediciones").select("*").order("fecha"),
     sb.from("cargas").select("*").order("fecha"),
     sb.from("ejercicios").select("*"),
-    sb.from("fotos_progreso").select("*").order("fecha")
+    sb.from("fotos_progreso").select("*").order("fecha"),
+    sb.from("avisos_generales").select("*").order("created_at",{ascending:false}).limit(50),
+    S.role==="admin" ? sb.from("rutinas_modelo").select("*").order("nombre") : Promise.resolve({ data: [] })
   ]);
   S.medic = m.data || []; S.cargas = c.data || []; S.biblio = b.data || []; S.fotos = ft.data || [];
+  S.avisos = av.data || []; S.modelos = rm.data || [];
 }
 async function cargarAdmin(){
   const desde = iso(new Date(Date.now()-120*86400000));
@@ -415,7 +419,8 @@ function vInicio(){
     <div class="cell"><small>Cobrado en ${parse(TODAY).toLocaleDateString("es-AR",{month:"long"})}</small><b>${money(cobradoMes)}</b></div>
     <div class="cell"><small>Vinieron hoy</small><b>${hoy} <span style="font-size:16px;opacity:.75">de ${al.length}</span></b></div>
   </div>
-  <div class="actions" style="margin-top:12px"><button class="btn primary" data-act="pago">Registrar pago</button><button class="btn" data-act="nuevo">Nuevo alumno</button><a class="btn" href="#asistencia">Tomar asistencia</a></div>
+  <div class="actions" style="margin-top:12px"><button class="btn primary" data-act="pago">Registrar pago</button><button class="btn" data-act="nuevo">Nuevo alumno</button><a class="btn" href="#asistencia">Tomar asistencia</a><a class="btn" href="#avisos">📢 Aviso a todos</a></div>
+  ${avisosVigentes().map(v=>`<div class="notice aviso-gral" style="cursor:pointer" data-go="avisos"><span><b>📢 Aviso vigente</b> (hasta ${fdate(v.hasta)}): ${esc(v.mensaje)}</span></div>`).join("")}
   <h2>Para cobrar</h2>
   <div class="list">${cobrar.length ? cobrar.map(([a,e])=>{
     const wa = waLink(a.telefono, recordatorio(a));
@@ -440,7 +445,10 @@ function vAlumnos(){
 function rutinaView(a){
   const dias = (a.rutina && a.rutina.dias) || [];
   if (!dias.length) return `<div class="empty">Sin rutina cargada. Tocá <b>Editar rutina</b> para armarla.</div>`;
-  return `<div class="stack rt-view">${dias.map(d=>`<div class="day"><div class="day-head"><h3>${esc(d.nombre||"Día")}</h3></div><div style="overflow-x:auto"><table><thead><tr><th>Ejercicio</th><th>Series</th><th>Reps</th><th>Carga / desc.</th></tr></thead><tbody>${(d.ejercicios||[]).map(x=>`<tr><td>${esc(x.nombre)}${videoDe(x.nombre)}</td><td class="num">${esc(x.series)}</td><td class="num">${esc(x.reps)}</td><td>${esc(x.carga)}</td></tr>`).join("")}</tbody></table></div></div>`).join("")}</div>`;
+  return `<div class="stack rt-view">${dias.map(d=>`<div class="day"><div class="day-head"><h3>${esc(d.nombre||"Día")}</h3><span class="small muted" style="margin-left:auto">${(d.ejercicios||[]).length} ejercicios</span></div>${(d.ejercicios||[]).map(x=>{
+    const e = ejDe(x.nombre), sr = [x.series, x.reps].map(v=>String(v??"").trim()).filter(Boolean).join(" x ");
+    const thumb = e && e.foto_path ? `<button class="ej-thumb" data-abrir="${esc(e.foto_path)}" aria-label="Ver foto de ${esc(x.nombre)}"><img data-foto="${esc(e.foto_path)}" alt=""></button>` : `<div class="ej-thumb vacia" aria-hidden="true">${esc(initials(x.nombre))}</div>`;
+    return `<div class="rt-ex">${thumb}<div class="main"><div class="name">${esc(x.nombre)}</div><div class="muted small">${x.carga?esc(x.carga):""}${videoDe(x.nombre)}</div></div>${sr?`<div class="sr num">${esc(sr)}</div>`:""}</div>`; }).join("")}</div>`).join("")}</div>`;
 }
 function rutinaEditor(){
   const d = S.draft;
@@ -478,7 +486,8 @@ function vAlumno(id){
   <div class="card small" style="margin-top:10px">${a.email
     ? `<b>Acceso a la app:</b> ${esc(a.email)}. Con ese email el alumno crea su cuenta y ve su rutina y sus días de cuota.<div class="actions" style="margin-top:8px">${waInv?`<a class="btn sm" href="${esc(waInv)}" target="_blank" rel="noopener">Invitar por WhatsApp</a>`:""}<button class="btn sm" data-act="copiar-inv" data-id="${esc(id)}">Copiar invitación</button></div>`
     : `<b>Sin acceso a la app.</b> Cargale un email en <button class="linkbtn" data-act="editar" data-id="${esc(id)}">Editar datos</button> para que pueda ver su rutina desde el celular.`}</div>
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2>Rutina</h2>${S.editRutina?"":`<div class="actions"><button class="btn sm" data-act="rt-copy" data-id="${esc(id)}">Copiar para WhatsApp</button><button class="btn sm primary" data-act="rt-edit" data-id="${esc(id)}">Editar rutina</button></div>`}</div>
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap"><h2>Rutina</h2>${S.editRutina?"":`<div class="actions"><button class="btn sm" data-act="rm-usar" data-id="${esc(id)}">Usar rutina modelo</button>${(a.rutina&&a.rutina.dias&&a.rutina.dias.length)?`<button class="btn sm" data-act="rm-desde" data-id="${esc(id)}">Guardar como modelo</button><button class="btn sm" data-act="rt-copy" data-id="${esc(id)}">Copiar para WhatsApp</button>`:""}<button class="btn sm primary" data-act="rt-edit" data-id="${esc(id)}">Editar rutina</button></div>`}</div>
+  ${!S.editRutina && a.rutina && a.rutina.modelo ? `<p class="small muted" style="margin:6px 0 8px">Rutina modelo: <b>${esc(a.rutina.modelo)}</b></p>` : ""}
   <div id="rt">${S.editRutina ? rutinaEditor() : rutinaView(a)}</div>
   <h2>Progreso</h2>
   ${progresoView(id, true)}
@@ -574,8 +583,9 @@ function barChart(items){
   </svg></div>`;
 }
 
+const ejDe = nombre => (S.biblio||[]).find(x => x.nombre.trim().toLowerCase() === String(nombre||"").trim().toLowerCase());
 function videoDe(nombre){
-  const e = (S.biblio||[]).find(x => x.nombre.trim().toLowerCase() === String(nombre||"").trim().toLowerCase());
+  const e = ejDe(nombre);
   if (!e) return "";
   if (e.video_url) return ` <a class="vid" href="${esc(e.video_url)}" target="_blank" rel="noopener" aria-label="Ver video de ${esc(e.nombre)}">▶ Video</a>`;
   if (e.video_path) return ` <button class="vid" data-abrir="${esc(e.video_path)}" aria-label="Ver video de ${esc(e.nombre)}">▶ Video</button>`;
@@ -740,7 +750,7 @@ function cargaForm(id){
 }
 
 /* ----- Reportes ----- */
-function masTabs(cual){ return `<div class="chips" style="margin-top:14px"><a class="chip" href="#reportes" aria-pressed="${cual==="reportes"}">Reportes</a><a class="chip" href="#ejercicios" aria-pressed="${cual==="ejercicios"}">Ejercicios</a></div>`; }
+function masTabs(cual){ return `<div class="chips" style="margin-top:14px">${[["avisos","📢 Avisos"],["rutinas","Rutinas modelo"],["ejercicios","Ejercicios"],["reportes","Reportes"]].map(([k,t])=>`<a class="chip" href="#${k}" aria-pressed="${cual===k}">${t}</a>`).join("")}</div>`; }
 function vReportes(){
   const m = S.repMes || TODAY.slice(0,7);
   const delMes = S.pagos.filter(p=>p.fecha.startsWith(m));
@@ -781,9 +791,9 @@ function vEjercicios(){
   const grupos = [...new Set(lista.map(e=>e.grupo||"Otros"))].sort((a,b)=>gi(a)-gi(b) || a.localeCompare(b,"es"));
   return `${masTabs("ejercicios")}
   <h2>Biblioteca de ejercicios</h2>
-  <p class="small muted" style="margin-top:-4px">Cada ejercicio con video aparece con <b>▶ Video</b> en la rutina de tus alumnos, cuando el nombre coincide.</p>
+  <p class="small muted" style="margin-top:-4px">Cada ejercicio con foto o video aparece con su miniatura y <b>▶ Video</b> en la rutina de tus alumnos, cuando el nombre coincide.</p>
   <div class="toolbar"><input id="buscar-ej" type="search" placeholder="Buscar ejercicio o grupo" value="${esc(S.qEj||"")}"><button class="btn primary" data-act="ej-nuevo">Nuevo ejercicio</button></div>
-  ${lista.length ? grupos.map(g=>`<h3 style="margin:14px 0 6px">${esc(g)}</h3><div class="list">${lista.filter(e=>(e.grupo||"Otros")===g).map(e=>`<div class="row"><div class="main"><div class="name">${esc(e.nombre)}</div>${e.descripcion?`<div class="muted small">${esc(e.descripcion)}</div>`:""}</div><div class="actions">${videoDe(e.nombre)||`<span class="small muted">sin video</span>`}<button class="btn sm" data-act="ej-editar" data-id="${esc(e.id)}">Editar</button></div></div>`).join("")}</div>`).join("")
+  ${lista.length ? grupos.map(g=>`<h3 style="margin:14px 0 6px">${esc(g)}</h3><div class="list">${lista.filter(e=>(e.grupo||"Otros")===g).map(e=>`<div class="row">${e.foto_path?`<span class="ej-thumb"><img data-foto="${esc(e.foto_path)}" alt=""></span>`:""}<div class="main"><div class="name">${esc(e.nombre)}</div>${e.descripcion?`<div class="muted small">${esc(e.descripcion)}</div>`:""}</div><div class="actions">${videoDe(e.nombre)||`<span class="small muted">sin video</span>`}<button class="btn sm" data-act="ej-editar" data-id="${esc(e.id)}">Editar</button></div></div>`).join("")}</div>`).join("")
    : `<div class="empty card">${(S.biblio||[]).length ? "Ningún ejercicio coincide con la búsqueda." : "Todavía no cargaste ejercicios. Tocá <b>Nuevo ejercicio</b> y pegá el link de un video corto."}</div>`}`;
 }
 document.addEventListener("input", e => { if (e.target.id==="buscar-ej"){ S.qEj = e.target.value; const pos=e.target.selectionStart; render(); const b=$("#buscar-ej"); if(b){ b.focus(); b.setSelectionRange(pos,pos);} } });
@@ -797,6 +807,8 @@ function ejercicioForm(ej){
     <label class="f">Link del video (YouTube, Instagram, Drive…)<input id="fe-url" type="url" value="${esc(ej.video_url)}" placeholder="https://youtu.be/..."></label>
     <label class="f">O subí un video corto desde el celular (hasta 20 MB)<input id="fe-file" type="file" accept="video/*"></label>
     ${ej.video_path ? `<span class="small muted">Ya tiene un video subido. Si subís otro, se reemplaza.</span>` : ""}
+    <label class="f">Foto del ejercicio (se ve como miniatura en las rutinas)<input id="fe-foto" type="file" accept="image/*"></label>
+    ${ej.foto_path ? `<div class="sec-head"><span class="ej-thumb"><img data-foto="${esc(ej.foto_path)}" alt=""></span><span class="small muted" style="flex:1">Ya tiene foto. Si subís otra, se reemplaza.</span><button class="btn sm danger" type="button" id="fe-sinfoto">Quitar foto</button></div>` : ""}
     <div class="actions"><button class="btn primary" type="submit" id="fe-ok">${n?"Agregar ejercicio":"Guardar cambios"}</button>${n?"":`<button class="btn danger" type="button" id="fe-del">Borrar</button>`}</div></form>`, () => {
     $("#fe").onsubmit = async e => {
       e.preventDefault();
@@ -810,9 +822,163 @@ function ejercicioForm(ej){
         if (!v) return;
         Object.assign(d, { video_url: null, video_path: null }, v);
       }
+      const ff = $("#fe-foto").files[0];
+      if (ff) {
+        const b=$("#fe-ok"); b.disabled=true; b.textContent="Subiendo foto…";
+        const blob = await achicarFoto(ff, 600);
+        const path = `biblioteca/fotos/${Date.now()}.jpg`;
+        const up = await sb.storage.from("archivos").upload(path, blob, { contentType:"image/jpeg" });
+        b.disabled=false; b.textContent="Guardar";
+        if (up.error) return toast("No se pudo subir la foto: " + errMsg(up.error));
+        d.foto_path = path;
+      } else if (ej.quitarFoto) d.foto_path = null;
       if (await guardar("ejercicios", d, n ? null : ej.id)) closeSheet();
     };
     if (!n) $("#fe-del").onclick = async () => { if (await borrar("ejercicios", ej.id)) closeSheet(); };
+    const sf = $("#fe-sinfoto"); if (sf) sf.onclick = () => { ej.quitarFoto = true; sf.closest(".sec-head").innerHTML = `<span class="small muted">La foto se quita al guardar.</span>`; };
+    pintarFotos();
+  });
+}
+
+/* ----- Rutinas modelo ----- */
+const nEj = r => ((r && r.dias) || []).reduce((s,d)=>s+(d.ejercicios||[]).length, 0);
+const conModelo = id => [...S.alumnos.values()].filter(a => a.rutina && a.rutina.modelo_id === id);
+const plural = (n, uno, varios) => `${n} ${n===1?uno:varios}`;
+function vRutinas(){
+  if (S.editRutina && S.draft && S.draft.modelo) return `${masTabs("rutinas")}
+    <h2>${S.draft.modeloId ? "Editar" : "Nueva"} rutina modelo</h2>
+    <div class="card stack" style="margin-bottom:10px"><label class="f">Nombre de la rutina<input id="rm-nombre" value="${esc(S.draft.nombre||"")}" placeholder="Ej: Full Body principiante" autocomplete="off"></label>
+    <span class="small muted">Armá los días (por ejemplo "Lunes · Rutina A") y sus ejercicios. Después la asignás a todos los alumnos que quieras de un toque.</span></div>
+    <div id="rt">${rutinaEditor()}</div>`;
+  const ms = (S.modelos||[]).slice().sort((a,b)=>a.nombre.localeCompare(b.nombre,"es"));
+  return `${masTabs("rutinas")}
+  <h2>Rutinas modelo</h2>
+  <p class="small muted" style="margin-top:-4px">Armá una rutina una sola vez y asignala a varios alumnos juntos. Si después querés ajustarla para uno solo, la editás desde su ficha.</p>
+  <div class="actions"><button class="btn primary" data-act="rm-nueva">+ Nueva rutina modelo</button></div>
+  ${ms.length ? `<div class="stack" style="margin-top:12px">${ms.map(m=>{ const dias=(m.rutina&&m.rutina.dias)||[]; const n=conModelo(m.id).length;
+    return `<div class="card stack"><div><b style="font-size:17px">${esc(m.nombre)}</b><div class="muted small">${plural(dias.length,"día","días")} · ${plural(nEj(m.rutina),"ejercicio","ejercicios")} · ${n ? `<b>la tienen ${plural(n,"alumno","alumnos")}</b>` : "sin asignar"}</div>${dias.length?`<div class="small" style="margin-top:4px">${dias.map(d=>esc(d.nombre)).join(" · ")}</div>`:""}</div>
+      <details><summary class="small">Ver ejercicios</summary><div style="margin-top:8px">${rutinaView(m)}</div></details>
+      <div class="actions"><button class="btn sm primary" data-act="rm-asignar" data-id="${esc(m.id)}">Asignar a alumnos</button><button class="btn sm" data-act="rm-editar" data-id="${esc(m.id)}">Editar</button><button class="btn sm danger" data-act="rm-borrar" data-id="${esc(m.id)}">Borrar</button></div></div>`; }).join("")}</div>`
+   : `<div class="empty card" style="margin-top:12px">Todavía no armaste rutinas modelo. Tocá <b>Nueva rutina modelo</b>, o abrí la ficha de un alumno que ya tenga rutina y tocá <b>Guardar como modelo</b>.</div>`}`;
+}
+function editarModelo(m){
+  const base = m && m.rutina && m.rutina.dias && m.rutina.dias.length ? m.rutina : { dias:[{ nombre:"Lunes · Rutina A", ejercicios:[{nombre:"",series:"",reps:"",carga:""}] }] };
+  S.draft = JSON.parse(JSON.stringify({ dias: base.dias }));
+  S.draft.modelo = true; S.draft.modeloId = m ? m.id : null; S.draft.nombre = m ? m.nombre : "";
+  S.editRutina = true;
+  render(); window.scrollTo(0,0);
+}
+async function guardarModelo(dias){
+  const nombre = (S.draft.nombre||"").trim();
+  if (!nombre) { toast("Ponele un nombre a la rutina"); $("#rm-nombre")?.focus(); return; }
+  if (!dias.length) return toast("Agregá al menos un ejercicio");
+  const mid = S.draft.modeloId; S.editRutina=false; S.draft=null;
+  const rutina = { dias };
+  const r = mid ? await sb.from("rutinas_modelo").update({ nombre, rutina }).eq("id", mid).select().single()
+                : await sb.from("rutinas_modelo").insert({ nombre, rutina }).select().single();
+  if (r.error) { toast("No se pudo guardar: " + errMsg(r.error)); S.editRutina=true; return; }
+  toast("Rutina modelo guardada");
+  await recargar();
+  // Si ya la tenían alumnos, ofrecer actualizársela.
+  const ya = mid ? conModelo(mid).map(a=>a.id) : [];
+  asignarModelo(r.data, ya.length ? ya : null, !!ya.length);
+}
+function asignarModelo(m, pre, cambio){
+  if (!m) return;
+  const al = activos();
+  const sel = new Set(pre || conModelo(m.id).map(a=>a.id));
+  const planes = [...new Set(al.map(a=>a.plan).filter(Boolean))].sort();
+  const tiene = a => a.rutina && a.rutina.modelo_id === m.id ? `<span class="pill ok">Ya la tiene</span>` : (a.rutina && a.rutina.dias && a.rutina.dias.length) ? `Tiene: ${esc(a.rutina.modelo || "rutina propia")}` : "Sin rutina";
+  openSheet(`Asignar "${m.nombre}"`, `<div class="stack">
+    ${cambio ? `<div class="notice"><span>Cambiaste la rutina. ¿Se la actualizamos a los alumnos que ya la tenían? Están marcados abajo.</span></div>` : ""}
+    <input id="asg-q" type="search" placeholder="Buscar alumno" autocomplete="off">
+    <div class="chips"><button class="chip" type="button" data-asg="todos">Todos</button><button class="chip" type="button" data-asg="ninguno">Ninguno</button>${planes.map(p=>`<button class="chip" type="button" data-asg-plan="${esc(p)}">${esc(p)}</button>`).join("")}</div>
+    <div class="list asg-list">${al.length ? al.map(a=>`<label class="row asg-row" data-n="${esc(a.nombre.toLowerCase())}"><input type="checkbox" value="${esc(a.id)}" data-plan="${esc(a.plan||"")}" ${sel.has(a.id)?"checked":""}><div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${tiene(a)}</div></div></label>`).join("") : `<div class="empty">No tenés alumnos activos.</div>`}</div>
+    <span class="small muted">La rutina reemplaza la que tenga cada alumno elegido. Les llega un aviso al celular.</span>
+    <button class="btn primary" id="asg-ok" style="justify-content:center">Asignar</button></div>`, () => {
+    const boxes = () => [...document.querySelectorAll(".asg-row input")];
+    const upd = () => { const n = boxes().filter(b=>b.checked).length; const b = $("#asg-ok"); b.textContent = n ? `Asignar a ${plural(n,"alumno","alumnos")}` : "Elegí al menos un alumno"; b.disabled = !n; };
+    $("#asg-q").oninput = e => { const q = e.target.value.toLowerCase(); document.querySelectorAll(".asg-row").forEach(r => r.hidden = q && !r.dataset.n.includes(q)); };
+    document.querySelectorAll("[data-asg]").forEach(c => c.onclick = () => { boxes().forEach(b => { if (!b.closest(".asg-row").hidden) b.checked = c.dataset.asg==="todos"; }); upd(); });
+    document.querySelectorAll("[data-asg-plan]").forEach(c => c.onclick = () => { boxes().forEach(b => { if (b.dataset.plan===c.dataset.asgPlan) b.checked = true; }); upd(); });
+    document.querySelector(".asg-list").addEventListener("change", upd);
+    upd();
+    $("#asg-ok").onclick = async () => {
+      const ids = boxes().filter(b=>b.checked).map(b=>b.value); if (!ids.length) return;
+      const b = $("#asg-ok"); b.disabled = true; b.textContent = "Asignando…";
+      const ok = await run(() => sb.from("alumnos").update({ rutina:{ dias:m.rutina.dias, modelo_id:m.id, modelo:m.nombre }, rutina_actualizada:TODAY }).in("id", ids), `Listo: "${m.nombre}" asignada a ${plural(ids.length,"alumno","alumnos")}`);
+      if (ok) { closeSheet(); sb.functions.invoke("avisos-generales", { body:{ rutina_ids:ids, nombre:m.nombre } }).catch(() => {}); }
+      else upd();
+    };
+  });
+}
+function borrarModelo(m){
+  if (!m) return; const n = conModelo(m.id).length;
+  openSheet("Borrar rutina modelo", `<p>¿Borrar <b>${esc(m.nombre)}</b>?${n ? ` Los ${plural(n,"alumno","alumnos")} que la tienen <b>la siguen viendo</b>: solo se borra el modelo.` : ""}</p><div class="actions"><button class="btn danger" id="rmb-ok">Borrar</button></div>`, () => {
+    $("#rmb-ok").onclick = async () => { if (await borrar("rutinas_modelo", m.id)) closeSheet(); };
+  });
+}
+function usarModelo(a){
+  if (!a) return;
+  const ms = (S.modelos||[]).slice().sort((x,y)=>x.nombre.localeCompare(y.nombre,"es"));
+  const tiene = a.rutina && a.rutina.dias && a.rutina.dias.length;
+  openSheet(`Rutina modelo para ${a.nombre.split(" ")[0]}`, ms.length ? `<div class="stack">${tiene?`<span class="small muted">Reemplaza la rutina que tiene ahora.</span>`:""}<div class="list">${ms.map(m=>`<div class="row"><div class="main"><div class="name">${esc(m.nombre)}</div><div class="muted small">${((m.rutina&&m.rutina.dias)||[]).map(d=>esc(d.nombre)).join(" · ")}</div></div><button class="btn sm primary" data-usar="${esc(m.id)}">Usar</button></div>`).join("")}</div></div>`
+    : `<p>Todavía no tenés rutinas modelo.</p><div class="actions"><a class="btn primary" href="#rutinas" id="um-ir">Armar una</a></div>`, () => {
+    const ir = $("#um-ir"); if (ir) ir.onclick = closeSheet;
+    document.querySelectorAll("[data-usar]").forEach(b => b.onclick = async () => {
+      const m = ms.find(x=>x.id===b.dataset.usar); b.disabled = true;
+      if (await run(() => sb.from("alumnos").update({ rutina:{ dias:m.rutina.dias, modelo_id:m.id, modelo:m.nombre }, rutina_actualizada:TODAY }).eq("id", a.id), "Rutina asignada")) {
+        closeSheet(); sb.functions.invoke("avisos-generales", { body:{ rutina_ids:[a.id], nombre:m.nombre } }).catch(() => {});
+      }
+    });
+  });
+}
+function modeloDesdeAlumno(a){
+  if (!a) return;
+  openSheet("Guardar como rutina modelo", `<form id="fmd" class="stack"><span class="small">Se guarda una copia de la rutina de <b>${esc(a.nombre)}</b> para asignarla a otros alumnos.</span>
+    <label class="f">Nombre<input id="md-nombre" required value="${esc(a.rutina.modelo || "")}" placeholder="Ej: Full Body principiante" autocomplete="off"></label>
+    <div class="actions"><button class="btn primary" type="submit">Guardar modelo</button></div></form>`, () => {
+    $("#md-nombre").focus();
+    $("#fmd").onsubmit = async e => { e.preventDefault(); const nombre = $("#md-nombre").value.trim(); if (!nombre) return;
+      if (await run(() => sb.from("rutinas_modelo").insert({ nombre, rutina:{ dias:a.rutina.dias } }), "Rutina modelo guardada")) closeSheet(); };
+  });
+}
+
+/* ----- Avisos a todos los alumnos ----- */
+const avisosVigentes = () => (S.avisos||[]).filter(v => v.hasta ? v.hasta >= TODAY : daysBetween(v.created_at.slice(0,10), TODAY) <= 7);
+function vAvisos(){
+  const en7 = iso(new Date(parse(TODAY).getTime()+7*86400000));
+  const n = activos().length;
+  return `${masTabs("avisos")}
+  <h2>Aviso a todos los alumnos</h2>
+  <form id="fav" class="card stack">
+    <label class="f">Mensaje<textarea id="av-msg" required maxlength="400" placeholder="Ej: El lunes 8 es feriado y el gym está cerrado. ¡Nos vemos el martes!"></textarea></label>
+    <label class="f">Que se vea en la app hasta<input id="av-hasta" type="date" value="${en7}" min="${TODAY}"></label>
+    <span class="small muted">Lo ven arriba de todo al abrir la app tus ${plural(n,"alumno activo","alumnos activos")}, y les llega como notificación a los que tienen los avisos activados.</span>
+    <button class="btn primary" type="submit" id="av-ok" style="justify-content:center">📢 Enviar a todos</button>
+  </form>
+  <h2>Avisos enviados</h2>
+  <div class="list">${(S.avisos||[]).length ? S.avisos.map(v=>{ const vig = avisosVigentes().includes(v);
+    return `<div class="row"><div class="main"><div class="name aviso-txt">${esc(v.mensaje)}</div><div class="muted small">Enviado el ${fdate(v.created_at.slice(0,10))} · ${vig ? `<span class="pill ok">Visible</span> hasta ${fdate(v.hasta)}` : "ya no se muestra"}</div></div><button class="btn sm danger" data-act="av-del" data-id="${esc(v.id)}" aria-label="Borrar aviso">✕</button></div>`; }).join("")
+   : `<div class="empty">Todavía no mandaste avisos.</div>`}</div>`;
+}
+document.addEventListener("submit", async e => {
+  if (e.target.id !== "fav") return;
+  e.preventDefault();
+  const mensaje = $("#av-msg").value.trim(), hasta = $("#av-hasta").value || TODAY;
+  if (!mensaje) return;
+  const b = $("#av-ok"); b.disabled = true; b.textContent = "Enviando…";
+  const { data, error } = await sb.from("avisos_generales").insert({ mensaje, hasta }).select().single();
+  if (error) { b.disabled = false; b.textContent = "📢 Enviar a todos"; return toast("No se pudo enviar: " + errMsg(error)); }
+  const r = await sb.functions.invoke("avisos-generales", { body:{ aviso_id:data.id } }).catch(e => ({ error:e }));
+  const n = r && !r.error && r.data ? r.data.enviados : null;
+  toast(n == null ? "Aviso publicado en la app" : n ? `Aviso enviado: llegó a ${plural(n,"celular","celulares")}` : "Aviso publicado. Ningún alumno tiene los avisos activados todavía.");
+  await recargar();
+});
+function borrarAviso(v){
+  if (!v) return;
+  openSheet("Borrar aviso", `<p>¿Borrar este aviso? Los alumnos dejan de verlo en la app.</p><p class="small muted">${esc(v.mensaje)}</p><div class="actions"><button class="btn danger" id="avb-ok">Borrar aviso</button></div>`, () => {
+    $("#avb-ok").onclick = async () => { if (await borrar("avisos_generales", v.id)) closeSheet(); };
   });
 }
 
@@ -833,6 +999,12 @@ async function accionesExtra(act, t){
   const id = t.dataset.id;
   if (act==="ej-nuevo") ejercicioForm();
   else if (act==="ej-editar") ejercicioForm((S.biblio||[]).find(e=>e.id===id));
+  else if (act==="rm-nueva" || act==="rm-editar") editarModelo((S.modelos||[]).find(m=>m.id===id));
+  else if (act==="rm-asignar") asignarModelo((S.modelos||[]).find(m=>m.id===id));
+  else if (act==="rm-borrar") borrarModelo((S.modelos||[]).find(m=>m.id===id));
+  else if (act==="rm-usar") usarModelo(S.alumnos.get(id));
+  else if (act==="rm-desde") modeloDesdeAlumno(S.alumnos.get(id));
+  else if (act==="av-del") borrarAviso((S.avisos||[]).find(v=>v.id===id));
   else return false;
   return true;
 }
@@ -854,11 +1026,11 @@ function render(){
   if (S.role !== "admin") return;
   $("#top").hidden = false; $("#tabs").hidden = false;
   const r = location.hash.slice(1) || "inicio";
-  const base = r.startsWith("alumno-") ? "alumnos" : (r==="reportes"||r==="ejercicios") ? "mas" : r;
+  const base = r.startsWith("alumno-") ? "alumnos" : ["reportes","ejercicios","rutinas","avisos"].includes(r) ? "mas" : r;
   document.querySelectorAll("#tabs a").forEach(a => { if (a.dataset.v===base) a.setAttribute("aria-current","page"); else a.removeAttribute("aria-current"); });
-  if (S.editRutina && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.r) return;
+  if (S.editRutina && document.activeElement && document.activeElement.dataset && (document.activeElement.dataset.r || document.activeElement.id==="rm-nombre")) return;
   const focusSearch = document.activeElement && document.activeElement.id==="buscar"; const pos = focusSearch ? document.activeElement.selectionStart : 0;
-  $("#view").innerHTML = r==="alumnos" ? vAlumnos() : r.startsWith("alumno-") ? vAlumno(r.slice(7)) : r==="pagos" ? vPagos() : r==="asistencia" ? vAsistencia() : r==="reportes" ? vReportes() : r==="ejercicios" ? vEjercicios() : vInicio();
+  $("#view").innerHTML = r==="alumnos" ? vAlumnos() : r.startsWith("alumno-") ? vAlumno(r.slice(7)) : r==="pagos" ? vPagos() : r==="asistencia" ? vAsistencia() : r==="reportes" ? vReportes() : r==="ejercicios" ? vEjercicios() : r==="rutinas" ? vRutinas() : r==="avisos" ? vAvisos() : vInicio();
   if (focusSearch){ const b=$("#buscar"); if(b){ b.focus(); b.setSelectionRange(pos,pos);} }
   pintarPush(); pintarFotos();
 }
@@ -866,6 +1038,7 @@ window.addEventListener("hashchange", () => { S.editRutina=false; S.draft=null; 
 
 document.addEventListener("input", e => {
   if (e.target.id==="buscar"){ S.q = e.target.value; const l=$("#al-list"); if(l){ const tmp=document.createElement("div"); tmp.innerHTML=vAlumnos(); l.innerHTML=tmp.querySelector("#al-list").innerHTML; } }
+  if (e.target.id==="rm-nombre" && S.draft) S.draft.nombre = e.target.value;
   const r = e.target.dataset && e.target.dataset.r;
   if (r && S.draft){ const i=+e.target.dataset.i; if (r==="dia") S.draft.dias[i].nombre=e.target.value; else S.draft.dias[i].ejercicios[+e.target.dataset.j][r]=e.target.value; }
 });
@@ -912,6 +1085,7 @@ document.addEventListener("click", async e => {
   else if (act==="rt-delex"){ S.draft.dias[+t.dataset.i].ejercicios.splice(+t.dataset.j,1); rerenderRt(); }
   else if (act==="rt-save"){
     const dias = S.draft.dias.map(d=>({nombre:d.nombre.trim()||"Día", ejercicios:d.ejercicios.filter(x=>x.nombre.trim()).map(x=>({nombre:x.nombre.trim(),series:String(x.series).trim(),reps:String(x.reps).trim(),carga:String(x.carga).trim()}))})).filter(d=>d.ejercicios.length);
+    if (S.draft.modelo) return guardarModelo(dias);
     const aid = S.draft.alumnoId; S.editRutina=false; S.draft=null;
     await run(() => sb.from("alumnos").update({ rutina:{dias}, rutina_actualizada:TODAY }).eq("id", aid), "Rutina guardada");
   }
