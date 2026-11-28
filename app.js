@@ -14,6 +14,8 @@ const money = n => new Intl.NumberFormat("es-AR",{style:"currency",currency:"ARS
 const fdate = s => s ? parse(s).toLocaleDateString("es-AR",{day:"numeric",month:"short"}) : "—";
 const fdateLong = s => s ? parse(s).toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"}) : "";
 const initials = n => (n||"?").split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0].toUpperCase()).join("");
+const fotoPerfil = id => `${id}/perfil/foto.jpg`;
+const avatar = (a, grande) => `<div class="avatar${grande?" grande":""}">${esc(initials(a.nombre))}${a.id?`<img data-foto="${esc(fotoPerfil(a.id))}" alt="">`:""}</div>`;
 const RECOVERY = /type=recovery/.test(location.hash);
 const APP_URL = location.origin + location.pathname.replace(/index\.html$/, "");
 $("#today").textContent = fdateLong(TODAY);
@@ -183,7 +185,7 @@ function renderAlumno(){
     : e.k==="warn" ? `<div class="notice"><span><b>${e.d===0 ? "Tu cuota vence hoy." : `Tu cuota vence en ${e.d} ${e.d===1?"día":"días"}.`}</b> Podés abonar en el gym o por transferencia.</span></div>` : "";
   const cumple = esCumple(f.nacimiento) ? `<div class="notice" style="font-size:16px"><span>🎉 <b>¡Feliz cumpleaños, ${esc((f.nombre||"").split(" ")[0])}!</b> Todo el equipo de ${esc(GYM)} te desea un gran día.</span></div>` : "";
   $("#view").innerHTML = `${cumple}${alerta}<div id="push-box" style="margin-top:10px"></div>
-  <h2>Hola, ${esc((f.nombre||"").split(" ")[0])}</h2>
+  <div class="hola">${f.id?`<button class="avatar-btn" data-pact="perfil-foto" data-id="${esc(f.id)}" aria-label="Cambiar mi foto de perfil">${avatar(f,true)}<span class="avatar-cam" aria-hidden="true">📷</span></button>`:""}<div><h2>Hola, ${esc((f.nombre||"").split(" ")[0])}</h2>${f.id?`<button class="linkbtn small" data-pact="perfil-foto" data-id="${esc(f.id)}">Tu foto de perfil</button>`:""}</div></div>
   ${fraseHoy()}
   <div class="card" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
     <div><div class="hero-days ${e.k}">${big}</div><div class="muted">${esc(label)}</div></div>
@@ -351,7 +353,7 @@ function nuevosInicio(){
   return `<h2>Alumnos nuevos <span class="pill warn">${p.length}</span></h2>
   <p class="small muted" style="margin:-4px 0 8px">Se registraron desde la app. Confirmá su alta y su primer pago.</p>
   <div class="list">${p.map(a=>{ const wa = waLink(a.telefono, `Hola ${a.nombre.split(" ")[0]}! Te escribo de ${GYM}. Recibí tu registro en la app.`);
-    return `<div class="row" style="flex-wrap:wrap"><div class="avatar">${esc(initials(a.nombre))}</div><div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${esc(a.plan||"Sin plan")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.created_at?` · se registró el ${fdate(a.created_at.slice(0,10))}`:""}</div></div>
+    return `<div class="row" style="flex-wrap:wrap">${avatar(a)}<div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${esc(a.plan||"Sin plan")}${a.telefono?` · ${esc(a.telefono)}`:""}${a.created_at?` · se registró el ${fdate(a.created_at.slice(0,10))}`:""}</div></div>
     <div class="actions" style="width:100%;justify-content:flex-end">${wa?`<a class="btn sm" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>`:""}<button class="btn sm danger" data-act="nuevo-rechazar" data-id="${esc(a.id)}">Rechazar</button><button class="btn sm primary" data-act="nuevo-confirmar" data-id="${esc(a.id)}">Confirmar</button></div></div>`; }).join("")}</div>`;
 }
 function confirmarNuevo(a){
@@ -419,7 +421,7 @@ function vInicio(){
   <h2>Para cobrar</h2>
   <div class="list">${cobrar.length ? cobrar.map(([a,e])=>{
     const wa = waLink(a.telefono, recordatorio(a));
-    return `<div class="row"><div class="avatar">${esc(initials(a.nombre))}</div><div class="main"><div class="name">${esc(a.nombre)}</div><span class="pill ${e.k}">${esc(e.t)}</span> <span class="muted small num">${money(a.cuota)}</span></div>
+    return `<div class="row">${avatar(a)}<div class="main"><div class="name">${esc(a.nombre)}</div><span class="pill ${e.k}">${esc(e.t)}</span> <span class="muted small num">${money(a.cuota)}</span></div>
     <div class="actions">${wa?`<a class="btn sm" href="${esc(wa)}" target="_blank" rel="noopener">Avisar</a>`:`<button class="btn sm" data-act="copiar-rec" data-id="${esc(a.id)}">Aviso</button>`}<button class="btn sm primary" data-act="pago" data-id="${esc(a.id)}">Cobrar</button></div></div>`}).join("")
     : `<div class="empty">${al.length ? "Nadie debe la cuota. Todos tus alumnos están al día." : "Empezá cargando tus alumnos con <b>Nuevo alumno</b>."}</div>`}</div>
   ${cumplesInicio()}`;
@@ -433,7 +435,7 @@ function vAlumnos(){
   return `<h2>Alumnos</h2>
   <div class="toolbar"><input id="buscar" type="search" placeholder="Buscar por nombre, teléfono o email" value="${esc(S.q)}"><button class="btn primary" data-act="nuevo">Nuevo alumno</button></div>
   <div class="chips" style="margin-bottom:10px">${chip("todos","Activos")}${chip("ok","Al día")}${chip("warn","Por vencer")}${chip("bad","Vencidos")}${chip("off","Inactivos")}</div>
-  <div class="list" id="al-list">${list.length ? list.map(a=>{const e=estado(a); return `<div class="row link" data-go="alumno-${esc(a.id)}" tabindex="0"><div class="avatar">${esc(initials(a.nombre))}</div><div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${esc(a.plan||"")}${a.vence?` · pagado hasta ${fdate(a.vence)}`:""}</div></div><span class="pill ${e.k}">${esc(e.t)}</span></div>`}).join("")
+  <div class="list" id="al-list">${list.length ? list.map(a=>{const e=estado(a); return `<div class="row link" data-go="alumno-${esc(a.id)}" tabindex="0">${avatar(a)}<div class="main"><div class="name">${esc(a.nombre)}</div><div class="muted small">${esc(a.plan||"")}${a.vence?` · pagado hasta ${fdate(a.vence)}`:""}</div></div><span class="pill ${e.k}">${esc(e.t)}</span></div>`}).join("")
    : `<div class="empty">${S.alumnos.size ? "Ningún alumno coincide con el filtro." : "Todavía no cargaste alumnos. Tocá <b>Nuevo alumno</b> para empezar."}</div>`}</div>`;
 }
 
@@ -467,7 +469,7 @@ function vAlumno(id){
   const waInv = a.email ? waLink(a.telefono, invitacion(a)) : null;
   const pend = a.pendiente ? `<div class="notice"><span><b>Registro pendiente.</b> Se anotó desde la app y falta confirmar su alta.</span><button class="btn sm primary" data-act="nuevo-confirmar" data-id="${esc(id)}">Confirmar</button></div>` : "";
   return `<p style="margin:10px 0 0"><a href="#alumnos" class="muted small">← Alumnos</a></p>${pend}
-  <div style="display:flex;gap:12px;align-items:center;margin-top:8px"><div class="avatar" style="width:52px;height:52px;font-size:22px">${esc(initials(a.nombre))}</div><div style="min-width:0"><h2 style="margin:0">${esc(a.nombre)}</h2><span class="pill ${e.k}">${esc(e.t)}</span></div></div>
+  <div style="display:flex;gap:12px;align-items:center;margin-top:8px">${avatar(a,true)}<div style="min-width:0"><h2 style="margin:0">${esc(a.nombre)}</h2><span class="pill ${e.k}">${esc(e.t)}</span> <button class="linkbtn small" data-pact="perfil-foto" data-id="${esc(id)}">Cambiar foto</button></div></div>
   <div class="card" style="margin-top:12px"><div class="grid2 small">
     <div><span class="muted">Plan</span><br>${esc(a.plan||"—")}</div><div><span class="muted">Cuota</span><br><span class="num">${money(a.cuota)}</span></div>
     <div><span class="muted">Pagado hasta</span><br>${a.vence?fdate(a.vence):"Sin pagos"} <button class="linkbtn" data-act="vence" data-id="${esc(id)}">Corregir</button></div><div><span class="muted">Asistencias (30 días)</span><br><span class="num">${vino}</span></div>
@@ -636,9 +638,9 @@ async function pintarFotos(){
   const falta = [...new Set(imgs.map(i=>i.dataset.foto))].filter(p => !S.fotoUrl[p] || S.fotoUrl[p].exp < Date.now());
   if (falta.length) {
     const { data } = await sb.storage.from("archivos").createSignedUrls(falta, 3600);
-    (data||[]).forEach(d => { if (d.signedUrl) S.fotoUrl[d.path] = { url:d.signedUrl, exp:Date.now()+50*60000 }; });
+    (data||[]).forEach(d => { if (d.path) S.fotoUrl[d.path] = d.signedUrl ? { url:d.signedUrl, exp:Date.now()+50*60000 } : { url:null, exp:Date.now()+5*60000 }; });
   }
-  document.querySelectorAll("img[data-foto]").forEach(i => { const u = S.fotoUrl[i.dataset.foto]; if (u && i.getAttribute("src") !== u.url) i.src = u.url; });
+  document.querySelectorAll("img[data-foto]").forEach(i => { const u = S.fotoUrl[i.dataset.foto]; if (u && u.url && i.getAttribute("src") !== u.url) i.src = u.url; });
 }
 async function achicarFoto(file, max=1280){
   try {
@@ -679,6 +681,40 @@ function fotoForm(id){
     };
   });
 }
+async function fotoCuadrada(file, lado=400){
+  try {
+    const bmp = await createImageBitmap(file, { imageOrientation:"from-image" });
+    const m = Math.min(bmp.width, bmp.height), k = Math.min(lado, m);
+    const c = document.createElement("canvas"); c.width = c.height = k;
+    c.getContext("2d").drawImage(bmp, (bmp.width-m)/2, (bmp.height-m)/2, m, m, 0, 0, k, k);
+    return await new Promise(r => c.toBlob(b => r(b || file), "image/jpeg", 0.85));
+  } catch { return file; }
+}
+function perfilForm(id){
+  const path = fotoPerfil(id), tiene = S.fotoUrl[path] && S.fotoUrl[path].url;
+  const a = S.alumnos.get(id) || S.ficha || {};
+  openSheet("Foto de perfil", `<form id="fpf" class="stack">
+    <div style="display:flex;justify-content:center">${avatar({id, nombre:a.nombre}, true).replace('class="avatar grande"','class="avatar enorme"')}</div>
+    <label class="f">Elegí una foto o sacate una<input id="fpf-file" type="file" accept="image/*"></label>
+    <span class="small muted">Se recorta en cuadrado, centrada. La ven ${S.role==="admin" ? "el alumno y los profes" : "vos y tu profe"}.</span>
+    <div class="actions"><button class="btn primary" type="submit" id="fpf-ok">Guardar foto</button>${tiene?`<button class="btn danger" type="button" id="fpf-del">Quitar foto</button>`:""}</div></form>`, () => {
+    pintarFotos();
+    const listo = async msg => { delete S.fotoUrl[path]; toast(msg); closeSheet(); await recargar(); };
+    $("#fpf").onsubmit = async e => {
+      e.preventDefault();
+      const f = $("#fpf-file").files[0]; if (!f) return toast("Elegí una foto");
+      const btn = $("#fpf-ok"); btn.disabled = true; btn.textContent = "Subiendo…";
+      const up = await sb.storage.from("archivos").upload(path, await fotoCuadrada(f), { contentType:"image/jpeg", upsert:true, cacheControl:"60" });
+      if (up.error) { btn.disabled = false; btn.textContent = "Guardar foto"; return toast("No se pudo subir: " + errMsg(up.error)); }
+      await listo("Foto guardada");
+    };
+    const del = $("#fpf-del"); if (del) del.onclick = async () => {
+      const r = await sb.storage.from("archivos").remove([path]);
+      if (r.error) return toast("No se pudo quitar: " + errMsg(r.error));
+      await listo("Foto quitada");
+    };
+  });
+}
 function borrarFotos(id, fecha){
   const lista = (S.fotos||[]).filter(f=>f.alumno_id===id && f.fecha===fecha);
   openSheet("Borrar fotos", `<p>¿Borrar las fotos del <b>${fdate(fecha)}</b>? No se pueden recuperar.</p><div class="actions"><button class="btn danger" id="bf-ok">Borrar fotos</button></div>`, () => {
@@ -700,6 +736,7 @@ document.addEventListener("click", async e => {
   if (act==="med-nueva") medicionForm(id);
   else if (act==="carga-nueva") cargaForm(id);
   else if (act==="foto-nueva") fotoForm(id);
+  else if (act==="perfil-foto") perfilForm(id);
   else if (act==="foto-del") borrarFotos(id, t.dataset.fecha);
   else if (act==="prog-del") { if (await borrar(t.dataset.tabla, id)) toast("Registro borrado"); }
 });
