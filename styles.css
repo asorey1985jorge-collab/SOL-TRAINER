@@ -125,7 +125,12 @@ a.chip{text-decoration:none}
 .frase::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:linear-gradient(#c084fc,#c026d3);box-shadow:0 0 12px rgba(192,132,252,.9)}
 .frase small{display:block;color:var(--accent-2);font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:13px;text-shadow:0 0 10px rgba(168,85,247,.6)}
 .frase p{margin:4px 0 0;font-family:var(--font-display);font-weight:600;font-style:italic;font-size:22px;line-height:1.2;text-wrap:balance}
-.frase+.card{margin-top:12px}
+.frase+.card,.tip+.card{margin-top:12px}
+/* Tip del día (Inicio, debajo de la frase) */
+.tip{display:flex;gap:12px;align-items:flex-start;margin-top:10px;padding:12px 14px;border-radius:12px;background:rgba(168,85,247,.08);border:1px solid rgba(168,85,247,.3)}
+.tip-ic{font-size:24px;line-height:1;margin-top:2px}
+.tip small{display:block;color:var(--accent-2);font-family:var(--font-display);font-weight:700;text-transform:uppercase;letter-spacing:.08em;font-size:12px}
+.tip p{margin:3px 0 0;font-size:16px;line-height:1.35}
 /* Fotos de evolución */
 .foto{display:block;width:100%;aspect-ratio:3/4;padding:0;border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface-2);cursor:pointer}
 .foto img{width:100%;height:100%;object-fit:cover;display:block}
